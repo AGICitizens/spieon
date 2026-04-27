@@ -14,6 +14,7 @@ from app.models.memory import (
     MemoryItem,
     MemoryTier,
 )
+from app.models.module import Module
 from app.models.narration import NarrationEvent, Phase
 from app.models.probe_run import ProbeEngine, ProbeRun, ProbeRunStatus
 from app.models.scan import Scan, ScanStatus
@@ -26,6 +27,7 @@ __all__ = [
     "MemoryEventType",
     "MemoryItem",
     "MemoryTier",
+    "Module",
     "NarrationEvent",
     "Phase",
     "ProbeEngine",
