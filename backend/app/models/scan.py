@@ -11,6 +11,8 @@ from app.models.base import TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.finding import Finding
+    from app.models.narration import NarrationEvent
+    from app.models.probe_run import ProbeRun
 
 
 class ScanStatus(str, Enum):
@@ -53,3 +55,5 @@ class Scan(TimestampMixin, table=True):
     error: str | None = Field(default=None)
 
     findings: list["Finding"] = Relationship(back_populates="scan")
+    probe_runs: list["ProbeRun"] = Relationship(back_populates="scan")
+    narration_events: list["NarrationEvent"] = Relationship(back_populates="scan")
