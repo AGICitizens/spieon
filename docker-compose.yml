@@ -1,0 +1,202 @@
+# Spieon — local dev stack.
+# - postgres        Spieon's app DB (with pgvector)
+# - langfuse-*      Self-hosted Langfuse v3 (web + worker + postgres + clickhouse + redis + minio)
+# - backend         FastAPI service
+#
+# Bring up: `make up`. Logs: `make logs`. Tear down + wipe volumes: `make clean`.
+
+name: spieon
+
+services:
+  # ---------------------------------------------------------------------------
+  # Spieon application database — Postgres + pgvector
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-spieon}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-spieon_dev_password_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-spieon}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-spieon} -d ${POSTGRES_DB:-spieon}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ---------------------------------------------------------------------------
+  # Langfuse self-hosted — v3 stack
+  # Reference: https://langfuse.com/self-hosting/docker-compose
+  # ---------------------------------------------------------------------------
+  langfuse-postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: langfuse_dev_password
+      POSTGRES_DB: langfuse
+    volumes:
+      - langfuse-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langfuse -d langfuse"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  langfuse-clickhouse:
+    image: clickhouse/clickhouse-server:24.3
+    restart: unless-stopped
+    user: "101:101"
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: clickhouse_dev_password
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - clickhouse-logs:/var/log/clickhouse-server
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8123/ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  langfuse-redis:
+    image: redis:7
+    restart: unless-stopped
+    command: --requirepass langfuse_redis_dev_password
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  langfuse-minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio_dev_password
+    ports:
+      - "9090:9000"
+      - "9091:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  langfuse-worker:
+    image: langfuse/langfuse-worker:3
+    restart: unless-stopped
+    depends_on:
+      langfuse-postgres:
+        condition: service_healthy
+      langfuse-clickhouse:
+        condition: service_healthy
+      langfuse-redis:
+        condition: service_healthy
+      langfuse-minio:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://langfuse:langfuse_dev_password@langfuse-postgres:5432/langfuse
+      SALT: ${LANGFUSE_SALT:-change_me_in_dev}
+      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
+      TELEMETRY_ENABLED: "false"
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false"
+      CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse-clickhouse:9000
+      CLICKHOUSE_URL: http://langfuse-clickhouse:8123
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: clickhouse_dev_password
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: minio_dev_password
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+      LANGFUSE_INGESTION_QUEUE_DELAY_MS: 1000
+      REDIS_HOST: langfuse-redis
+      REDIS_PORT: 6379
+      REDIS_AUTH: langfuse_redis_dev_password
+
+  langfuse:
+    image: langfuse/langfuse:3
+    restart: unless-stopped
+    depends_on:
+      langfuse-postgres:
+        condition: service_healthy
+      langfuse-clickhouse:
+        condition: service_healthy
+      langfuse-redis:
+        condition: service_healthy
+      langfuse-minio:
+        condition: service_healthy
+    ports:
+      - "3001:3000"
+    environment:
+      DATABASE_URL: postgresql://langfuse:langfuse_dev_password@langfuse-postgres:5432/langfuse
+      NEXTAUTH_URL: http://localhost:3001
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-change_me_in_dev}
+      SALT: ${LANGFUSE_SALT:-change_me_in_dev}
+      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
+      TELEMETRY_ENABLED: "false"
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false"
+      LANGFUSE_INIT_ORG_ID: spieon
+      LANGFUSE_INIT_PROJECT_ID: spieon
+      LANGFUSE_INIT_USER_EMAIL: dev@spieon.local
+      LANGFUSE_INIT_USER_PASSWORD: spieon_dev_password
+      CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse-clickhouse:9000
+      CLICKHOUSE_URL: http://langfuse-clickhouse:8123
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: clickhouse_dev_password
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: minio_dev_password
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+      REDIS_HOST: langfuse-redis
+      REDIS_PORT: 6379
+      REDIS_AUTH: langfuse_redis_dev_password
+
+  # ---------------------------------------------------------------------------
+  # Spieon backend
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      # Compose-internal overrides: containers reach postgres by service name
+      POSTGRES_HOST: postgres
+      LANGFUSE_HOST: http://langfuse:3000
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-spieon}:${POSTGRES_PASSWORD:-spieon_dev_password_change_me}@postgres:5432/${POSTGRES_DB:-spieon}
+      DATABASE_URL_SYNC: postgresql+psycopg://${POSTGRES_USER:-spieon}:${POSTGRES_PASSWORD:-spieon_dev_password_change_me}@postgres:5432/${POSTGRES_DB:-spieon}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  pgdata:
+  langfuse-pgdata:
+  clickhouse-data:
+  clickhouse-logs:
+  minio-data:
