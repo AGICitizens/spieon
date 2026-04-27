@@ -364,3 +364,17 @@ vite.config.ts.timestamp-*
 .vite/
 
 .internal/
+
+# Spieon data directories (Docker volumes, runtime artifacts)
+pgdata/
+langfuse-data/
+clickhouse-data/
+minio-data/
+.langfuse/
+
+# Local artifacts that should never be committed
+*.age
+*.key
+!*.example.key
+secrets/
+keys/
