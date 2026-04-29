@@ -1,3 +1,5 @@
+import NarrationStream from "./NarrationStream";
+
 type Params = { id: string };
 
 export default async function ScanDetailPage({
@@ -6,13 +8,14 @@ export default async function ScanDetailPage({
   params: Promise<Params>;
 }) {
   const { id } = await params;
+
   return (
-    <section className="space-y-4">
-      <h1 className="text-2xl font-semibold">Scan {id}</h1>
-      <p className="text-zinc-400">
-        Live narration stream, probe runs, and attested findings will render
-        here.
-      </p>
+    <section className="space-y-6">
+      <header className="space-y-1">
+        <p className="text-xs uppercase tracking-wide text-zinc-500">scan</p>
+        <h1 className="font-mono text-xl text-zinc-100">{id}</h1>
+      </header>
+      <NarrationStream scanId={id} />
     </section>
   );
 }
