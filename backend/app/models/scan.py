@@ -4,7 +4,7 @@ from decimal import Decimal
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime
+from sqlalchemy import DateTime, String
 from sqlmodel import Field, Relationship
 
 from app.models.base import TimestampMixin
@@ -45,7 +45,7 @@ class Scan(TimestampMixin, table=True):
     spent_usdc: Decimal = Field(default=Decimal("0"), max_digits=18, decimal_places=6)
 
     # Lifecycle
-    status: ScanStatus = Field(default=ScanStatus.pending, index=True)
+    status: ScanStatus = Field(default=ScanStatus.pending, index=True, sa_type=String(32))
     consent_at: datetime = Field(sa_type=DateTime(timezone=True))
     started_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
     completed_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))

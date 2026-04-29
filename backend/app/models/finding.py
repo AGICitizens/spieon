@@ -4,7 +4,7 @@ from decimal import Decimal
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, UniqueConstraint
+from sqlalchemy import DateTime, String, UniqueConstraint
 from sqlmodel import Field, Relationship
 
 from app.models.base import TimestampMixin
@@ -27,7 +27,7 @@ class Finding(TimestampMixin, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     scan_id: uuid.UUID = Field(foreign_key="scans.id", index=True)
 
-    severity: Severity = Field(index=True)
+    severity: Severity = Field(index=True, sa_type=String(32))
     title: str = Field(max_length=512)
     summary: str
 

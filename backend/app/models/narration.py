@@ -2,6 +2,7 @@ import uuid
 from enum import Enum
 from typing import TYPE_CHECKING
 
+from sqlalchemy import String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Relationship
 
@@ -38,7 +39,7 @@ class NarrationEvent(TimestampMixin, table=True):
         default=None, foreign_key="probe_runs.id", index=True
     )
 
-    phase: Phase = Field(index=True)
+    phase: Phase = Field(index=True, sa_type=String(32))
 
     # Did the just-completed action succeed? None = narrative-only event.
     success_signal: bool | None = Field(default=None)

@@ -8,7 +8,7 @@ so the dashboard can render the leaderboard without an RPC round-trip per row.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, UniqueConstraint
+from sqlalchemy import DateTime, String, UniqueConstraint
 from sqlmodel import Field
 
 from app.models.base import TimestampMixin
@@ -34,7 +34,7 @@ class Module(TimestampMixin, table=True):
     metadata_uri: str = Field(max_length=512)
 
     # Maximum severity this module is allowed to claim (enforces bounty caps)
-    severity_cap: Severity = Field(default=Severity.medium)
+    severity_cap: Severity = Field(default=Severity.medium, sa_type=String(32))
 
     # Cached counters from chain
     times_used: int = Field(default=0)

@@ -11,7 +11,7 @@ from enum import Enum
 from typing import TYPE_CHECKING
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Column, DateTime
+from sqlalchemy import Column, DateTime, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Relationship
 
@@ -50,7 +50,7 @@ class MemoryEvent(TimestampMixin, table=True):
         default=None, foreign_key="probe_runs.id", index=True
     )
 
-    event_type: MemoryEventType = Field(index=True)
+    event_type: MemoryEventType = Field(index=True, sa_type=String(32))
     content: str
 
     # Optional generalization keys — let heuristic consolidation cluster events
@@ -78,7 +78,7 @@ class MemoryItem(TimestampMixin, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
 
-    tier: MemoryTier = Field(default=MemoryTier.working, index=True)
+    tier: MemoryTier = Field(default=MemoryTier.working, index=True, sa_type=String(32))
     content: str
 
     # Source events that this item summarizes (UUIDs of MemoryEvent rows)

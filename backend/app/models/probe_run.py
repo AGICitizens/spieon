@@ -4,7 +4,7 @@ from decimal import Decimal
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime
+from sqlalchemy import DateTime, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Relationship
 
@@ -37,14 +37,14 @@ class ProbeRun(TimestampMixin, table=True):
 
     # Identity in the probe registry (e.g. "x402-replay-attack", "garak.promptinject")
     probe_id: str = Field(max_length=128, index=True)
-    engine: ProbeEngine = Field(index=True)
+    engine: ProbeEngine = Field(index=True, sa_type=String(32))
 
     # Inputs / outputs (JSONB for query flexibility on Postgres)
     params: dict = Field(default_factory=dict, sa_type=JSONB)
     response_excerpt: str | None = Field(default=None)  # truncated capture for forensics
 
     # Lifecycle
-    status: ProbeRunStatus = Field(default=ProbeRunStatus.pending, index=True)
+    status: ProbeRunStatus = Field(default=ProbeRunStatus.pending, index=True, sa_type=String(32))
     started_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
     finished_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
     error: str | None = Field(default=None)
