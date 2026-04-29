@@ -11,12 +11,22 @@ os.environ.setdefault(
     "postgresql+psycopg://spieon:spieon_dev_password_change_me@127.0.0.1:5432/spieon",
 )
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from app import db as db_module
 from app.main import app
+
+
+@pytest.fixture(autouse=True)
+def _reset_engine() -> Iterator[None]:
+    db_module._engine = None
+    db_module._sessionmaker = None
+    yield
+    db_module._engine = None
+    db_module._sessionmaker = None
 
 
 @pytest.fixture

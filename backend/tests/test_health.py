@@ -11,9 +11,7 @@ async def test_health_reports_db_ok(client: AsyncClient) -> None:
     assert body["db"] is True
 
 
-async def test_health_degrades_when_db_unreachable(
-    client: AsyncClient, monkeypatch
-) -> None:
+async def test_health_degrades_when_db_unreachable(client: AsyncClient, monkeypatch) -> None:
     from app.api import health as health_module
 
     async def boom() -> bool:

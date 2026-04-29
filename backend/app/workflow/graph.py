@@ -1,68 +1,170 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from decimal import Decimal
 from typing import Any
 
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph import END, START, StateGraph
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from app.agent.tools.narrate import NarrateDecision, write_narration
 from app.config import get_settings
+from app.db import get_sessionmaker
+from app.models.narration import Phase
 from app.workflow.state import ScanState
 
+NodeFn = Callable[[ScanState], Awaitable[dict[str, Any]]]
 
-async def recon_node(state: ScanState) -> dict[str, Any]:
+
+async def _emit(
+    sessionmaker: async_sessionmaker | None,
+    state: ScanState,
+    *,
+    phase: Phase,
+    content: str,
+    success: bool | None = None,
+    decision: str | None = None,
+    next_action: str | None = None,
+    target_observations: dict[str, Any] | None = None,
+    context: dict[str, Any] | None = None,
+) -> None:
+    if sessionmaker is None:
+        return
+    scan_id = state.get("scan_id")
+    if scan_id is None:
+        return
+    payload = NarrateDecision(
+        phase=phase,
+        content=content,
+        success_signal=success,
+        decision=decision,
+        next_action=next_action,
+        target_observations=target_observations or {},
+        context=context or {},
+    )
+    async with sessionmaker() as session:
+        await write_narration(session, scan_id=scan_id, payload=payload)
+        await session.commit()
+
+
+def _make_nodes(sessionmaker: async_sessionmaker | None) -> dict[str, NodeFn]:
+    async def recon(state: ScanState) -> dict[str, Any]:
+        observations = {"target_url": state.get("target_url"), "tools_seen": 0}
+        await _emit(
+            sessionmaker,
+            state,
+            phase=Phase.recon,
+            content=f"Inspecting {state.get('target_url')}.",
+            success=True,
+            decision="recon",
+            next_action="plan",
+            target_observations=observations,
+        )
+        return {"last_phase": "recon", "last_observation": observations}
+
+    async def plan(state: ScanState) -> dict[str, Any]:
+        planned = state.get("planned_probes") or ["x402-replay", "schema-poisoning"]
+        await _emit(
+            sessionmaker,
+            state,
+            phase=Phase.plan,
+            content=f"Drafting probe order: {', '.join(planned)}.",
+            success=True,
+            decision="initial_plan",
+            next_action="probe",
+            context={"planned_probes": planned},
+        )
+        return {"last_phase": "plan", "planned_probes": planned}
+
+    async def probe(state: ScanState) -> dict[str, Any]:
+        await _emit(
+            sessionmaker,
+            state,
+            phase=Phase.probe,
+            content="Running first probe in plan.",
+            success=None,
+            next_action="reflect",
+        )
+        return {"last_phase": "probe", "spent_usdc": state.get("spent_usdc") or Decimal("0")}
+
+    async def reflect(state: ScanState) -> dict[str, Any]:
+        await _emit(
+            sessionmaker,
+            state,
+            phase=Phase.reflect,
+            content="Reflecting on probe outcome.",
+            decision="forward_to_verify",
+            next_action="adapt",
+        )
+        return {"last_phase": "reflect"}
+
+    async def adapt(state: ScanState) -> dict[str, Any]:
+        n = (state.get("adapt_iterations") or 0) + 1
+        await _emit(
+            sessionmaker,
+            state,
+            phase=Phase.adapt,
+            content=f"Adaptive iteration {n}: continuing planned probe.",
+            decision="continue_planned",
+            next_action="verify",
+            context={"adapt_iterations": n},
+        )
+        return {"last_phase": "adapt", "adapt_iterations": n}
+
+    async def verify(state: ScanState) -> dict[str, Any]:
+        await _emit(
+            sessionmaker,
+            state,
+            phase=Phase.verify,
+            content="Verifying findings before attestation.",
+            success=True,
+            next_action="attest",
+        )
+        return {"last_phase": "verify", "findings": state.get("findings") or []}
+
+    async def attest(state: ScanState) -> dict[str, Any]:
+        await _emit(
+            sessionmaker,
+            state,
+            phase=Phase.attest,
+            content="Attesting findings on chain.",
+            success=True,
+            next_action="consolidate",
+        )
+        return {"last_phase": "attest"}
+
+    async def consolidate(state: ScanState) -> dict[str, Any]:
+        await _emit(
+            sessionmaker,
+            state,
+            phase=Phase.consolidate,
+            content="Consolidating memory and procedural heuristics.",
+            success=True,
+            next_action=None,
+        )
+        return {"last_phase": "consolidate"}
+
     return {
-        "last_phase": "recon",
-        "last_observation": {"target_url": state.get("target_url"), "tools_seen": 0},
+        "recon": recon,
+        "plan": plan,
+        "probe": probe,
+        "reflect": reflect,
+        "adapt": adapt,
+        "verify": verify,
+        "attest": attest,
+        "consolidate": consolidate,
     }
 
 
-async def plan_node(state: ScanState) -> dict[str, Any]:
-    planned = state.get("planned_probes") or ["x402-replay", "schema-poisoning"]
-    return {"last_phase": "plan", "planned_probes": planned}
-
-
-async def probe_node(state: ScanState) -> dict[str, Any]:
-    return {"last_phase": "probe", "spent_usdc": state.get("spent_usdc") or Decimal("0")}
-
-
-async def reflect_node(state: ScanState) -> dict[str, Any]:
-    return {"last_phase": "reflect"}
-
-
-async def adapt_node(state: ScanState) -> dict[str, Any]:
-    return {
-        "last_phase": "adapt",
-        "adapt_iterations": (state.get("adapt_iterations") or 0) + 1,
-    }
-
-
-async def verify_node(state: ScanState) -> dict[str, Any]:
-    return {"last_phase": "verify", "findings": state.get("findings") or []}
-
-
-async def attest_node(state: ScanState) -> dict[str, Any]:
-    return {"last_phase": "attest"}
-
-
-async def consolidate_node(state: ScanState) -> dict[str, Any]:
-    return {"last_phase": "consolidate"}
-
-
-def build_graph() -> StateGraph:
+def build_graph(sessionmaker: async_sessionmaker | None = None) -> StateGraph:
+    nodes = _make_nodes(sessionmaker)
     g = StateGraph(ScanState)
 
-    g.add_node("recon", recon_node)
-    g.add_node("plan", plan_node)
-    g.add_node("probe", probe_node)
-    g.add_node("reflect", reflect_node)
-    g.add_node("adapt", adapt_node)
-    g.add_node("verify", verify_node)
-    g.add_node("attest", attest_node)
-    g.add_node("consolidate", consolidate_node)
+    for name, fn in nodes.items():
+        g.add_node(name, fn)
 
     g.add_edge(START, "recon")
     g.add_edge("recon", "plan")
@@ -89,13 +191,19 @@ async def checkpointer() -> AsyncIterator[AsyncPostgresSaver]:
         yield saver
 
 
-async def run_hello_world(target_url: str = "https://example.invalid") -> ScanState:
+async def run_hello_world(
+    target_url: str = "https://example.invalid",
+    *,
+    scan_id: uuid.UUID | None = None,
+    emit_narration: bool = False,
+) -> ScanState:
+    sessionmaker = get_sessionmaker() if emit_narration else None
     async with checkpointer() as saver:
-        compiled = build_graph().compile(checkpointer=saver)
+        compiled = build_graph(sessionmaker).compile(checkpointer=saver)
         thread_id = str(uuid.uuid4())
         config = {"configurable": {"thread_id": thread_id}}
         state: ScanState = {
-            "scan_id": uuid.uuid4(),
+            "scan_id": scan_id or uuid.uuid4(),
             "target_url": target_url,
             "budget_usdc": Decimal("1.00"),
             "spent_usdc": Decimal("0"),
