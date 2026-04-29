@@ -14,6 +14,9 @@ from app.agent.tools.narrate import NarrateDecision, write_narration
 from app.config import get_settings
 from app.db import get_sessionmaker
 from app.models.narration import Phase
+from app.probes import ProbePlanItem, run_plan
+from app.probes.registry import list_probe_ids
+from app.safety import SafetyHarness
 from app.workflow.state import ScanState
 
 NodeFn = Callable[[ScanState], Awaitable[dict[str, Any]]]
@@ -66,29 +69,92 @@ def _make_nodes(sessionmaker: async_sessionmaker | None) -> dict[str, NodeFn]:
         return {"last_phase": "recon", "last_observation": observations}
 
     async def plan(state: ScanState) -> dict[str, Any]:
-        planned = state.get("planned_probes") or ["x402-replay", "schema-poisoning"]
+        registered = set(list_probe_ids())
+        planned = state.get("planned_probes") or list_probe_ids()
+        valid = [p for p in planned if p in registered]
         await _emit(
             sessionmaker,
             state,
             phase=Phase.plan,
-            content=f"Drafting probe order: {', '.join(planned)}.",
+            content=f"Drafting probe order: {', '.join(valid) if valid else '(no probes)'}.",
             success=True,
             decision="initial_plan",
             next_action="probe",
-            context={"planned_probes": planned},
+            context={"planned_probes": valid},
         )
-        return {"last_phase": "plan", "planned_probes": planned}
+        return {"last_phase": "plan", "planned_probes": valid}
 
     async def probe(state: ScanState) -> dict[str, Any]:
+        planned = state.get("planned_probes") or []
+        target_url = state.get("target_url") or ""
+        scan_id = state.get("scan_id")
+        budget_remaining = (state.get("budget_usdc") or Decimal("0")) - (
+            state.get("spent_usdc") or Decimal("0")
+        )
+
+        if sessionmaker is None or not planned or scan_id is None or not target_url:
+            await _emit(
+                sessionmaker,
+                state,
+                phase=Phase.probe,
+                content="No probe plan to execute.",
+                success=None,
+                next_action="reflect",
+            )
+            return {
+                "last_phase": "probe",
+                "spent_usdc": state.get("spent_usdc") or Decimal("0"),
+                "findings": state.get("findings") or [],
+            }
+
+        plan_items = [ProbePlanItem(probe_id=p) for p in planned]
+        async with sessionmaker() as session:
+            report = await run_plan(
+                session,
+                scan_id=scan_id,
+                target_url=target_url,
+                plan=plan_items,
+                harness=SafetyHarness(),
+                budget_usdc=budget_remaining,
+            )
+            await session.commit()
+
+        spent = (state.get("spent_usdc") or Decimal("0")) + report.total_cost_usdc
+        findings_payload = [
+            {
+                "title": f.title,
+                "severity": f.severity.value,
+                "module_hash": f.module_hash,
+                "owasp_id": f.owasp_id,
+                "cost_usdc": str(f.cost_usdc),
+            }
+            for f in report.consolidated
+        ]
+
+        skipped = sum(
+            1 for e in report.executions if e.verdict and e.verdict.decision.value != "allow"
+        )
         await _emit(
             sessionmaker,
             state,
             phase=Phase.probe,
-            content="Running first probe in plan.",
-            success=None,
+            content=(
+                f"Ran {len(report.executions)} probes, {len(findings_payload)} findings"
+                f" survived dedupe, {skipped} skipped by harness."
+            ),
+            success=bool(findings_payload) or len(report.executions) > 0,
             next_action="reflect",
+            context={
+                "spent_usdc": str(spent),
+                "auto_stop": report.auto_stop.value if report.auto_stop else None,
+            },
         )
-        return {"last_phase": "probe", "spent_usdc": state.get("spent_usdc") or Decimal("0")}
+
+        return {
+            "last_phase": "probe",
+            "spent_usdc": spent,
+            "findings": (state.get("findings") or []) + findings_payload,
+        }
 
     async def reflect(state: ScanState) -> dict[str, Any]:
         await _emit(
