@@ -32,9 +32,12 @@ class X402Response:
         return self.payment_response.transaction if self.payment_response else None
 
 
-def _encode_payment_header(payload: PaymentPayload) -> str:
+def encode_payment_header(payload: PaymentPayload) -> str:
     raw = json.dumps(payload.to_dict(), separators=(",", ":")).encode()
     return base64.b64encode(raw).decode()
+
+
+_encode_payment_header = encode_payment_header  # legacy alias
 
 
 def _decode_payment_response(header_value: str) -> PaymentResponse | None:
@@ -112,7 +115,7 @@ class X402Client:
         payment = sign_payment(self._resolve_account(), requirements)
 
         retry_headers = dict(merged_headers)
-        retry_headers["X-Payment"] = _encode_payment_header(payment)
+        retry_headers["X-Payment"] = encode_payment_header(payment)
         second = await self._client.request(method, url, headers=retry_headers, json=json_body)
         payment_response = _decode_payment_response(second.headers.get("x-payment-response", ""))
         return X402Response(
