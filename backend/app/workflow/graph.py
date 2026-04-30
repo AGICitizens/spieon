@@ -21,6 +21,7 @@ from app.memory import consolidate as memory_consolidate
 from app.models.finding import Finding
 from app.models.narration import Phase
 from app.models.scan import Scan
+from app.patches import build_patches
 from app.probes import ProbePlanItem, normalize_finding, run_plan
 from app.probes.registry import list_probe_ids
 from app.safety import SafetyHarness
@@ -272,16 +273,40 @@ def _make_nodes(sessionmaker: async_sessionmaker | None) -> dict[str, NodeFn]:
             for row in rows:
                 if row.eas_attestation_uid:
                     continue
+                severity_value = (
+                    row.severity.value
+                    if hasattr(row.severity, "value")
+                    else str(row.severity)
+                )
                 bundle_payload = {
                     "scan_id": str(scan_id),
                     "finding_id": str(row.id),
                     "title": row.title,
                     "summary": row.summary,
-                    "severity": row.severity.value if hasattr(row.severity, "value") else str(row.severity),
+                    "severity": severity_value,
                     "module_hash": row.module_hash,
                     "owasp_id": row.owasp_id,
                     "atlas_technique_id": row.atlas_technique_id,
                     "cost_usdc": str(row.cost_usdc),
+                    "patches": [
+                        {
+                            "format": patch.format,
+                            "filename": patch.filename,
+                            "content": patch.content,
+                        }
+                        for patch in build_patches(
+                            {
+                                "id": str(row.id),
+                                "title": row.title,
+                                "summary": row.summary,
+                                "severity": severity_value,
+                                "module_hash": row.module_hash,
+                                "owasp_id": row.owasp_id,
+                                "atlas_technique_id": row.atlas_technique_id,
+                                "probe_id": row.module_hash,
+                            }
+                        )
+                    ],
                 }
                 if scan and scan.recipient_pubkey:
                     bundle = encrypt_bundle(
