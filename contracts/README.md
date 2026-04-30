@@ -16,14 +16,14 @@ Foundry project. Two contracts deployed to Base Sepolia:
 ## Build
 
 ```sh
-forge install foundry-rs/forge-std OpenZeppelin/openzeppelin-contracts
-forge build
+make install   # clones forge-std and openzeppelin-contracts under lib/
+make build     # forge build
 ```
 
 ## Test
 
 ```sh
-forge test
+make test
 ```
 
 ## Deploy (Base Sepolia)
@@ -32,10 +32,7 @@ forge test
 export AGENT_ADDRESS=0x...
 export AGENT_PRIVATE_KEY=0x...
 export BASE_SEPOLIA_RPC_URL=https://sepolia.base.org
-forge script script/Deploy.s.sol:DeploySpieon \
-    --rpc-url base_sepolia \
-    --private-key $AGENT_PRIVATE_KEY \
-    --broadcast --verify
+make deploy
 ```
 
 The deploy script reads `X402_USDC_ADDRESS` (defaults to the canonical Base

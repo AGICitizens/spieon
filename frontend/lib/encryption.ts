@@ -16,6 +16,24 @@ export async function generateScanIdentity(): Promise<ScanIdentity> {
   };
 }
 
+export async function decryptBundleBytes(
+  ciphertext: Uint8Array,
+  identity: string,
+): Promise<Uint8Array> {
+  const decrypter = new age.Decrypter();
+  decrypter.addIdentity(identity);
+  return await decrypter.decrypt(ciphertext);
+}
+
+export async function decryptBundleJson(
+  ciphertext: Uint8Array,
+  identity: string,
+): Promise<unknown> {
+  const plaintext = await decryptBundleBytes(ciphertext, identity);
+  const text = new TextDecoder().decode(plaintext);
+  return JSON.parse(text);
+}
+
 export function downloadIdentityFile(identity: ScanIdentity, filename = "spieon-key.txt"): void {
   if (typeof window === "undefined") return;
   const body = [

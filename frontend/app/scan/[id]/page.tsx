@@ -1,4 +1,6 @@
 import { api, type Finding, type Scan } from "@/lib/api";
+import DecryptPanel from "./DecryptPanel";
+import LiveRefresh from "./LiveRefresh";
 import NarrationStream from "./NarrationStream";
 import PayoutButton from "./PayoutButton";
 
@@ -63,6 +65,10 @@ export default async function ScanDetailPage({
         ) : null}
       </header>
 
+      {scan && (scan.status === "running" || scan.status === "pending") ? (
+        <LiveRefresh intervalMs={3000} />
+      ) : null}
+
       <NarrationStream scanId={id} />
 
       <section className="space-y-3">
@@ -113,6 +119,7 @@ export default async function ScanDetailPage({
                   ) : null}
                 </p>
                 <PayoutButton finding={f} />
+                <DecryptPanel finding={f} />
               </li>
             ))}
           </ul>
