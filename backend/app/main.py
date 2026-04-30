@@ -1,7 +1,17 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import agent, erc8004, findings, health, modules, payouts, scans, ws
+from app.api import (
+    agent,
+    erc8004,
+    findings,
+    health,
+    memory,
+    modules,
+    payouts,
+    scans,
+    ws,
+)
 from app.config import get_settings
 
 
@@ -21,6 +31,7 @@ def create_app() -> FastAPI:
     app.include_router(findings.router)
     app.include_router(payouts.router)
     app.include_router(modules.router)
+    app.include_router(memory.router)
     app.include_router(agent.router)
     app.include_router(erc8004.router)
     app.include_router(ws.router)

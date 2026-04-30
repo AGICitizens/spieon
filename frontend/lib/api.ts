@@ -96,6 +96,24 @@ export type PayoutResult = {
   onchain: boolean;
 };
 
+export type Heuristic = {
+  id: string;
+  heuristic_key: string;
+  version: number;
+  rule: string;
+  target_type: string | null;
+  probe_class: string | null;
+  success_count: number;
+  sample_size: number;
+  success_rate: number;
+  owasp_id: string | null;
+  atlas_technique_id: string | null;
+  content_hash: string;
+  eas_attestation_uid: string | null;
+  attested_at: string | null;
+  created_at: string;
+};
+
 export type ModuleEntry = {
   module_hash: string;
   probe_id: string | null;
@@ -150,4 +168,6 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  listHeuristics: (limit?: number) =>
+    request<Heuristic[]>(`/memory/heuristics${limit ? `?limit=${limit}` : ""}`),
 };

@@ -10,6 +10,7 @@ from sqlmodel import select
 from app.api.schemas import ScanCreate, ScanRead
 from app.db import get_session
 from app.models.scan import Scan, ScanStatus
+from app.workflow.runner import start_scan_workflow
 
 router = APIRouter(prefix="/scans", tags=["scans"])
 
@@ -37,6 +38,8 @@ async def create_scan(
     session.add(scan)
     await session.commit()
     await session.refresh(scan)
+
+    start_scan_workflow(scan.id, scan.target_url, scan.budget_usdc)
     return scan
 
 
