@@ -1,6 +1,5 @@
 from functools import lru_cache
 
-from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -66,6 +65,7 @@ class Settings(BaseSettings):
     zerog_api_key: str = ""
     ipfs_pinning_endpoint: str = ""
     ipfs_pinning_token: str = ""
+    bundle_local_dir: str = "/tmp/spieon-bundles"
 
     @property
     def cors_origins_list(self) -> list[str]:

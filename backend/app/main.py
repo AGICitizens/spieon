@@ -13,11 +13,12 @@ from app.api import (
     ws,
 )
 from app.config import get_settings
+from app.lifespan import lifespan
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(title="Spieon", version="0.0.0")
+    app = FastAPI(title="Spieon", version="0.0.0", lifespan=lifespan)
 
     app.add_middleware(
         CORSMiddleware,

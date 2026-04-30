@@ -12,12 +12,14 @@ from langgraph.graph import END, START, StateGraph
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlmodel import select
 
+from app.agent.planner import PlannerHint, PlannerInput, plan_probes
 from app.agent.tools.narrate import NarrateDecision, write_narration
 from app.chain import attest_finding, encrypt_bundle
 from app.chain.eas import FindingAttestationPayload
 from app.config import get_settings
 from app.db import get_sessionmaker
 from app.memory import consolidate as memory_consolidate
+from app.memory.recall import recall_heuristics
 from app.models.finding import Finding
 from app.models.narration import Phase
 from app.models.scan import Scan
@@ -25,7 +27,19 @@ from app.patches import build_patches
 from app.probes import ProbePlanItem, normalize_finding, run_plan
 from app.probes.registry import list_probe_ids
 from app.safety import SafetyHarness
+from app.storage import get_bundle_storage
 from app.workflow.state import ScanState
+
+
+def _classify_target(target_url: str) -> str:
+    text = (target_url or "").lower()
+    if "/mcp" in text or text.endswith("/jsonrpc"):
+        return "mcp-http"
+    if "/sse" in text:
+        return "mcp-sse"
+    if "x402" in text or "/pay" in text or "/protected" in text:
+        return "x402-http"
+    return "http"
 
 NodeFn = Callable[[ScanState], Awaitable[dict[str, Any]]]
 
@@ -77,12 +91,18 @@ async def _findings_for_scan(
 
 def _make_nodes(sessionmaker: async_sessionmaker | None) -> dict[str, NodeFn]:
     async def recon(state: ScanState) -> dict[str, Any]:
-        observations = {"target_url": state.get("target_url"), "tools_seen": 0}
+        target_url = state.get("target_url") or ""
+        target_type = _classify_target(target_url)
+        observations = {
+            "target_url": target_url,
+            "target_type": target_type,
+            "tools_seen": 0,
+        }
         await _emit(
             sessionmaker,
             state,
             phase=Phase.recon,
-            content=f"Inspecting {state.get('target_url')}.",
+            content=f"Inspecting {target_url} (target_type={target_type}).",
             success=True,
             decision="recon",
             next_action="plan",
@@ -92,17 +112,68 @@ def _make_nodes(sessionmaker: async_sessionmaker | None) -> dict[str, NodeFn]:
 
     async def plan(state: ScanState) -> dict[str, Any]:
         registered = set(list_probe_ids())
-        planned = state.get("planned_probes") or list_probe_ids()
-        valid = [p for p in planned if p in registered]
+        existing = state.get("planned_probes") or []
+        valid_existing = [p for p in existing if p in registered]
+        if valid_existing:
+            await _emit(
+                sessionmaker,
+                state,
+                phase=Phase.plan,
+                content=f"Continuing planned probe order: {', '.join(valid_existing)}.",
+                success=True,
+                decision="initial_plan",
+                next_action="probe",
+                context={"planned_probes": valid_existing},
+            )
+            return {"last_phase": "plan", "planned_probes": valid_existing}
+
+        last_observation = state.get("last_observation") or {}
+        target_type = last_observation.get("target_type")
+        target_url = state.get("target_url") or ""
+
+        hints: list[PlannerHint] = []
+        if sessionmaker is not None and target_type:
+            try:
+                async with sessionmaker() as session:
+                    rows = await recall_heuristics(
+                        session, target_type=target_type, limit=5
+                    )
+                hints = [
+                    PlannerHint(
+                        probe_id=r.probe_class or "",
+                        rule=r.rule,
+                        success_rate=r.success_rate,
+                        sample_size=r.sample_size,
+                    )
+                    for r in rows
+                ]
+            except Exception:
+                hints = []
+
+        plan_input = PlannerInput(
+            target_url=target_url,
+            target_type=target_type,
+            hints=hints,
+        )
+        chosen, rationale = await plan_probes(plan_input)
+        valid = [p for p in chosen if p in registered]
+        if not valid:
+            valid = sorted(registered)
+            rationale = "fallback: planner returned no valid ids"
+
         await _emit(
             sessionmaker,
             state,
             phase=Phase.plan,
-            content=f"Drafting probe order: {', '.join(valid) if valid else '(no probes)'}.",
+            content=f"Plan: {', '.join(valid)}. {rationale}",
             success=True,
             decision="initial_plan",
             next_action="probe",
-            context={"planned_probes": valid},
+            context={
+                "planned_probes": valid,
+                "rationale": rationale,
+                "hint_count": len(hints),
+            },
         )
         return {"last_phase": "plan", "planned_probes": valid}
 
@@ -313,6 +384,15 @@ def _make_nodes(sessionmaker: async_sessionmaker | None) -> dict[str, NodeFn]:
                         bundle_payload, recipient_pubkey=scan.recipient_pubkey
                     )
                     row.ciphertext_sha256 = bundle.sha256
+                    storage = get_bundle_storage()
+                    try:
+                        row.encrypted_bundle_uri = await storage.put(
+                            scan_id=str(scan_id),
+                            finding_id=str(row.id),
+                            ciphertext=bundle.ciphertext,
+                        )
+                    except Exception:
+                        row.encrypted_bundle_uri = None
 
                 payload = FindingAttestationPayload(
                     scan_id=scan_id,

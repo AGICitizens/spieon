@@ -1,6 +1,16 @@
-import { api, type Finding } from "@/lib/api";
+import { api, type Finding, type Scan } from "@/lib/api";
 import NarrationStream from "./NarrationStream";
 import PayoutButton from "./PayoutButton";
+
+const STATUS_STYLE: Record<Scan["status"], string> = {
+  pending: "border-zinc-700 bg-zinc-900/60 text-zinc-300",
+  running: "border-amber-700 bg-amber-950/40 text-amber-200",
+  verifying: "border-cyan-700 bg-cyan-950/40 text-cyan-200",
+  attesting: "border-purple-700 bg-purple-950/40 text-purple-200",
+  done: "border-emerald-700 bg-emerald-950/40 text-emerald-200",
+  failed: "border-red-700 bg-red-950/40 text-red-200",
+  canceled: "border-zinc-700 bg-zinc-900/60 text-zinc-400",
+};
 
 const SEVERITY_STYLE: Record<Finding["severity"], string> = {
   low: "border-zinc-700 text-zinc-300",
@@ -19,18 +29,38 @@ export default async function ScanDetailPage({
   const { id } = await params;
 
   let findings: Finding[] = [];
+  let scan: Scan | null = null;
   let scanError: string | null = null;
   try {
-    findings = await api.listFindings({ scanId: id });
+    [findings, scan] = await Promise.all([
+      api.listFindings({ scanId: id }),
+      api.getScan(id).catch(() => null),
+    ]);
   } catch (err) {
     scanError = (err as Error).message;
   }
 
   return (
     <section className="space-y-8">
-      <header className="space-y-1">
+      <header className="space-y-2">
         <p className="text-xs uppercase tracking-wide text-zinc-500">scan</p>
-        <h1 className="font-mono text-xl text-zinc-100">{id}</h1>
+        <div className="flex flex-wrap items-baseline gap-3">
+          <h1 className="font-mono text-xl text-zinc-100">{id}</h1>
+          {scan ? (
+            <span
+              className={`rounded border px-2 py-0.5 text-xs uppercase tracking-wide ${STATUS_STYLE[scan.status]}`}
+            >
+              {scan.status}
+            </span>
+          ) : null}
+        </div>
+        {scan ? (
+          <p className="text-xs text-zinc-500">
+            <span className="text-zinc-400">{scan.target_url}</span>{" "}
+            · budget {scan.budget_usdc} · spent {scan.spent_usdc}
+            {scan.error ? <> · error <span className="text-red-400">{scan.error}</span></> : null}
+          </p>
+        ) : null}
       </header>
 
       <NarrationStream scanId={id} />

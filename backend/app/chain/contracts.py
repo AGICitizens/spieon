@@ -362,3 +362,73 @@ async def attestation_already_paid(attestation_uid: str) -> bool:
 
 def encode_taxonomy(value: str | None) -> bytes:
     return _string_to_bytes32(value)
+
+
+async def register_module_onchain(
+    *,
+    module_hash: str,
+    metadata_uri: str,
+    severity_cap: Severity,
+    owasp_id: str | None,
+    atlas_technique_id: str | None,
+    maestro_id: str | None,
+) -> str | None:
+    settings = get_settings()
+    if not settings.module_registry_address or not settings.agent_private_key:
+        return None
+
+    contract = _registry()
+    raw_hash = _hex_to_bytes32(module_hash)
+    if await contract.functions.isRegistered(raw_hash).call():
+        return None
+
+    w3 = get_w3()
+    account = signer()
+    nonce = await w3.eth.get_transaction_count(account.address)
+    tx = await contract.functions.register(
+        raw_hash,
+        metadata_uri,
+        SEVERITY_TO_UINT8[severity_cap],
+        _string_to_bytes32(owasp_id),
+        _string_to_bytes32(atlas_technique_id),
+        _string_to_bytes32(maestro_id),
+    ).build_transaction(
+        {
+            "from": account.address,
+            "nonce": nonce,
+            "chainId": settings.base_sepolia_chain_id,
+            "value": 0,
+        }
+    )
+    signed = account.sign_transaction(tx)
+    raw = (
+        signed.raw_transaction
+        if hasattr(signed, "raw_transaction")
+        else signed.rawTransaction
+    )
+    tx_hash = await w3.eth.send_raw_transaction(raw)
+    return tx_hash.hex() if hasattr(tx_hash, "hex") else str(tx_hash)
+
+
+async def register_native_probes() -> dict[str, str | None]:
+    from app.probes.registry import iter_probes
+
+    settings = get_settings()
+    if not settings.module_registry_address or not settings.agent_private_key:
+        return {}
+
+    results: dict[str, str | None] = {}
+    for spec in iter_probes():
+        try:
+            tx = await register_module_onchain(
+                module_hash=spec.module_hash,
+                metadata_uri=f"spieon-native://{spec.id}",
+                severity_cap=spec.severity_cap,
+                owasp_id=spec.owasp_id,
+                atlas_technique_id=spec.atlas_technique_id,
+                maestro_id=spec.maestro_id,
+            )
+            results[spec.id] = tx
+        except Exception as exc:
+            results[spec.id] = f"error: {exc}"
+    return results
