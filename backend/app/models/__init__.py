@@ -5,6 +5,7 @@ which is what Alembic autogenerate reads when producing migrations.
 """
 
 from app.models.base import TimestampMixin, utcnow
+from app.models.feedback import OperatorFeedback
 from app.models.finding import Finding, Severity
 from app.models.heuristic import Heuristic
 from app.models.memory import (
@@ -29,6 +30,7 @@ __all__ = [
     "MemoryTier",
     "Module",
     "NarrationEvent",
+    "OperatorFeedback",
     "Phase",
     "ProbeEngine",
     "ProbeRun",

@@ -33,6 +33,10 @@ class FindingRead(BaseModel):
     eas_attestation_uid: str | None
     attested_at: datetime | None
     created_at: datetime
+    bounty_recipient: str | None
+    bounty_amount_usdc: Decimal | None
+    bounty_tx_hash: str | None
+    bounty_paid_at: datetime | None
 
 
 def _serialize(row: Finding, scan: Scan | None) -> FindingRead:
@@ -56,6 +60,10 @@ def _serialize(row: Finding, scan: Scan | None) -> FindingRead:
         eas_attestation_uid=row.eas_attestation_uid,
         attested_at=row.attested_at,
         created_at=row.created_at,
+        bounty_recipient=row.bounty_recipient,
+        bounty_amount_usdc=row.bounty_amount_usdc,
+        bounty_tx_hash=row.bounty_tx_hash,
+        bounty_paid_at=row.bounty_paid_at,
     )
 
 

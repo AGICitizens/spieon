@@ -81,6 +81,19 @@ export type Finding = {
   eas_attestation_uid: string | null;
   attested_at: string | null;
   created_at: string;
+  bounty_recipient: string | null;
+  bounty_amount_usdc: string | null;
+  bounty_tx_hash: string | null;
+  bounty_paid_at: string | null;
+};
+
+export type PayoutResult = {
+  finding_id: string;
+  recipient: string;
+  amount_usdc: string;
+  tx_hash: string;
+  paid_at: string;
+  onchain: boolean;
 };
 
 export type ModuleEntry = {
@@ -129,4 +142,12 @@ export const api = {
   },
   listModules: (limit?: number) =>
     request<ModuleEntry[]>(`/modules${limit ? `?limit=${limit}` : ""}`),
+  payFinding: (
+    findingId: string,
+    body: { recipient: string; amount_usdc: string },
+  ) =>
+    request<PayoutResult>(`/findings/${findingId}/payout`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 };

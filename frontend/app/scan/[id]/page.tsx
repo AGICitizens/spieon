@@ -1,5 +1,6 @@
 import { api, type Finding } from "@/lib/api";
 import NarrationStream from "./NarrationStream";
+import PayoutButton from "./PayoutButton";
 
 const SEVERITY_STYLE: Record<Finding["severity"], string> = {
   low: "border-zinc-700 text-zinc-300",
@@ -81,6 +82,7 @@ export default async function ScanDetailPage({
                     </>
                   ) : null}
                 </p>
+                <PayoutButton finding={f} />
               </li>
             ))}
           </ul>

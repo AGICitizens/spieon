@@ -51,4 +51,12 @@ class Finding(TimestampMixin, table=True):
     # Cross-engine dedupe key (attack-signature hash; unique per scan)
     dedup_key: str = Field(max_length=128, index=True)
 
+    # Bounty payout bookkeeping (populated when the operator confirms + pays)
+    bounty_recipient: str | None = Field(default=None, max_length=64)
+    bounty_amount_usdc: Decimal | None = Field(
+        default=None, max_digits=18, decimal_places=6
+    )
+    bounty_tx_hash: str | None = Field(default=None, max_length=128, index=True)
+    bounty_paid_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+
     scan: "Scan" = Relationship(back_populates="findings")
