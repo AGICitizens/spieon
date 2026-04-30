@@ -53,6 +53,52 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
+export type AgentStats = {
+  address: string | null;
+  scans: number;
+  scans_completed: number;
+  findings: number;
+  heuristics_attested: number;
+  spent_usdc: string;
+  balances: { eth: string | null; usdc: string | null };
+  as_of: string;
+};
+
+export type Finding = {
+  id: string;
+  scan_id: string;
+  target_url: string | null;
+  severity: "low" | "medium" | "high" | "critical";
+  title: string;
+  summary: string;
+  module_hash: string;
+  cost_usdc: string;
+  owasp_id: string | null;
+  atlas_technique_id: string | null;
+  maestro_id: string | null;
+  encrypted_bundle_uri: string | null;
+  ciphertext_sha256: string | null;
+  eas_attestation_uid: string | null;
+  attested_at: string | null;
+  created_at: string;
+};
+
+export type ModuleEntry = {
+  module_hash: string;
+  probe_id: string | null;
+  author_address: string | null;
+  metadata_uri: string | null;
+  severity_cap: "low" | "medium" | "high" | "critical";
+  times_used: number;
+  success_count: number;
+  findings_landed: number;
+  bounties_earned_usdc: string;
+  owasp_id: string | null;
+  atlas_technique_id: string | null;
+  registered_at: string | null;
+  last_synced_at: string | null;
+};
+
 export const api = {
   health: () => request<Health>("/health"),
   listScans: () => request<Scan[]>("/scans"),
@@ -73,4 +119,14 @@ export const api = {
         ...input,
       }),
     }),
+  agentStats: () => request<AgentStats>("/agent/stats"),
+  listFindings: (params?: { scanId?: string; limit?: number }) => {
+    const search = new URLSearchParams();
+    if (params?.scanId) search.set("scan_id", params.scanId);
+    if (params?.limit) search.set("limit", String(params.limit));
+    const suffix = search.toString();
+    return request<Finding[]>(`/findings${suffix ? `?${suffix}` : ""}`);
+  },
+  listModules: (limit?: number) =>
+    request<ModuleEntry[]>(`/modules${limit ? `?limit=${limit}` : ""}`),
 };
