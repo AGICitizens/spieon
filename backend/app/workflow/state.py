@@ -36,5 +36,7 @@ class ScanState(TypedDict, total=False):
 
     last_phase: Annotated[str, _replace]
     last_observation: Annotated[dict[str, Any], _replace]
+    last_decision: Annotated[str, _replace]
+    next_probes: Annotated[list[str], _replace]
 
     messages: Annotated[list, add_messages]

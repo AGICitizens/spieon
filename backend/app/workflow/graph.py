@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlmodel import select
 
 from app.agent.planner import PlannerHint, PlannerInput, plan_probes
+from app.agent.reflector import reflect_decision
 from app.agent.tools.narrate import NarrateDecision, write_narration
 from app.chain import attest_finding, encrypt_bundle
 from app.chain.eas import FindingAttestationPayload
@@ -42,6 +43,7 @@ def _classify_target(target_url: str) -> str:
     return "http"
 
 NodeFn = Callable[[ScanState], Awaitable[dict[str, Any]]]
+MAX_ADAPT_ITERATIONS = 3
 
 
 async def _emit(
@@ -257,33 +259,99 @@ def _make_nodes(sessionmaker: async_sessionmaker | None) -> dict[str, NodeFn]:
 
     async def reflect(state: ScanState) -> dict[str, Any]:
         findings = state.get("findings") or []
+        adapt_n = state.get("adapt_iterations") or 0
+        spent = state.get("spent_usdc") or Decimal("0")
+        budget = state.get("budget_usdc") or Decimal("0")
+        remaining = budget - spent
+
+        result = await reflect_decision(
+            target_url=state.get("target_url") or "",
+            findings_so_far=findings,
+            last_executions=[
+                {
+                    "probe_id": p,
+                }
+                for p in (state.get("planned_probes") or [])
+            ],
+            budget_remaining_usdc=str(remaining),
+            adapt_iterations=adapt_n,
+            max_iterations=MAX_ADAPT_ITERATIONS,
+        )
+
         await _emit(
             sessionmaker,
             state,
             phase=Phase.reflect,
-            content=(
-                f"Found {len(findings)} candidate findings. Forwarding to verify."
-                if findings
-                else "No findings surfaced this pass. Adapting before retry."
-            ),
+            content=f"Reflect: {result.decision}. {result.rationale}",
             success=bool(findings),
-            decision="forward_to_verify" if findings else "no_findings",
+            decision=result.decision,
             next_action="adapt",
+            context={
+                "decision": result.decision,
+                "next_probes": result.next_probes,
+                "rationale": result.rationale,
+            },
         )
-        return {"last_phase": "reflect"}
+        return {
+            "last_phase": "reflect",
+            "last_decision": result.decision,
+            "next_probes": result.next_probes,
+        }
 
     async def adapt(state: ScanState) -> dict[str, Any]:
+        decision = state.get("last_decision") or "forward_to_verify"
         n = (state.get("adapt_iterations") or 0) + 1
+        next_probes = state.get("next_probes") or []
+        capped = n >= MAX_ADAPT_ITERATIONS
+
+        if decision in {"mutate", "pivot"} and not capped and next_probes:
+            await _emit(
+                sessionmaker,
+                state,
+                phase=Phase.adapt,
+                content=(
+                    f"Adaptive iteration {n}: {decision} -> {', '.join(next_probes)}."
+                ),
+                decision=decision,
+                next_action="probe",
+                context={"adapt_iterations": n, "next_probes": next_probes},
+            )
+            return {
+                "last_phase": "adapt",
+                "adapt_iterations": n,
+                "planned_probes": next_probes,
+            }
+
+        if decision == "continue_planned" and not capped and (state.get("planned_probes") or []):
+            await _emit(
+                sessionmaker,
+                state,
+                phase=Phase.adapt,
+                content=f"Adaptive iteration {n}: continuing planned probes.",
+                decision=decision,
+                next_action="probe",
+                context={"adapt_iterations": n},
+            )
+            return {"last_phase": "adapt", "adapt_iterations": n}
+
         await _emit(
             sessionmaker,
             state,
             phase=Phase.adapt,
-            content=f"Adaptive iteration {n}: forwarding to verify.",
+            content=(
+                f"Adaptive iteration {n}: forwarding to verify"
+                + (" (cap reached)" if capped else "")
+                + "."
+            ),
             decision="forward_to_verify",
             next_action="verify",
-            context={"adapt_iterations": n},
+            context={"adapt_iterations": n, "cap_reached": capped},
         )
-        return {"last_phase": "adapt", "adapt_iterations": n}
+        return {
+            "last_phase": "adapt",
+            "adapt_iterations": n,
+            "last_decision": "forward_to_verify",
+        }
 
     async def verify(state: ScanState) -> dict[str, Any]:
         scan_id = state.get("scan_id")
@@ -481,7 +549,23 @@ def build_graph(sessionmaker: async_sessionmaker | None = None) -> StateGraph:
     g.add_edge("plan", "probe")
     g.add_edge("probe", "reflect")
     g.add_edge("reflect", "adapt")
-    g.add_edge("adapt", "verify")
+
+    def _route_after_adapt(state: ScanState) -> str:
+        decision = state.get("last_decision") or "forward_to_verify"
+        n = state.get("adapt_iterations") or 0
+        if (
+            decision in {"continue_planned", "mutate", "pivot"}
+            and n < MAX_ADAPT_ITERATIONS
+            and (state.get("planned_probes") or [])
+        ):
+            return "probe"
+        return "verify"
+
+    g.add_conditional_edges(
+        "adapt",
+        _route_after_adapt,
+        {"probe": "probe", "verify": "verify"},
+    )
     g.add_edge("verify", "attest")
     g.add_edge("attest", "consolidate")
     g.add_edge("consolidate", END)
