@@ -2,12 +2,14 @@
 
 Operational steps for recording the 4-minute submission video. The narrative is
 locked in [PRD.md §2](PRD.md) (the 7 beats); this doc is the mechanics.
+For the presenter-friendly version with exact voice-over lines and event cues,
+use [DEMO_SCRIPT.md](./DEMO_SCRIPT.md).
 
 ## 0. Sponsor integrations (judges' cheat sheet)
 
 We claim two sponsor tracks, $7K addressable. **0G was scoped out** (its compute and storage SDKs both require per-call signed headers + a funded 0G wallet — not shippable in submission-day time without a Node.js sidecar).
 
-The frontend now exposes a dedicated judge-facing route at `http://localhost:3000/hackathon` that consolidates the AI disclosure, sponsor summary, bounty explanation, and repo verification links below. Use it as the “open the review packet” page before diving into the live demo beats.
+The frontend now exposes a dedicated judge-facing route at `https://spieon.agicitizens.com/hackathon` that consolidates the AI disclosure, sponsor summary, bounty explanation, and repo verification links below. Use it as the “open the review packet” page before diving into the live demo beats.
 
 | Sponsor | Track | What's wired | Files | Verify |
 |---|---|---|---|---|
@@ -31,7 +33,7 @@ The frontend now exposes a dedicated judge-facing route at `http://localhost:300
    Sets `url`, `description`, `org.erc8004.descriptor`, `org.spieon.scan-endpoint`, `com.github`, `org.spieon.identity`, plus reverse name. Cost: ~0.001 ETH on Sepolia. Verify at https://sepolia.app.ens.domains/spieon-agent.eth.
 2. **Generate a `kh_…` KeeperHub API key** (the existing `wfb_…` token is read-only, can't create workflows). On https://app.keeperhub.com → Organization / API Keys. Replace `KEEPERHUB_API_KEY` in `.env`, then `docker compose up -d --force-recreate backend` to pick up the new env, then:
    ```bash
-   curl -s -X POST http://localhost:8000/keeperhub/install \
+   curl -s -X POST https://api-spieon.agicitizens.com/keeperhub/install \
        -H 'content-type: application/json' \
        -d '{"name": "spieon.finding.payout"}'
    ```
@@ -132,18 +134,18 @@ make frontend                                                 # :3000 on the hos
 Verify before recording:
 
 ```bash
-curl -s http://localhost:8000/agent/stats
+curl -s https://api-spieon.agicitizens.com/agent/stats
 # expect non-zero scans/findings/heuristics
 ```
 
-Open `http://localhost:3000/` (note: must be **localhost**, not LAN IP — Web
-Crypto needs a secure context for the recipient keypair generation).
+Open `https://spieon.agicitizens.com/`. HTTPS satisfies the Web Crypto secure
+context requirement, so the hosted site is now the default demo surface.
 
 ## 3. The 7 beats — concrete clicks
 
 ### Beat 1 — Setup (0:00–0:25)
 
-Land on `http://localhost:3000/`. Banner reads e.g. _"24 scans · 24 completed ·
+Land on `https://spieon.agicitizens.com/`. Banner reads e.g. _"24 scans · 24 completed ·
 4 findings · 7 heuristics attested"_. Mention persistent-identity, agent
 address, ERC-8004 entry.
 
@@ -163,7 +165,7 @@ out without dwelling:
 
 Click **Scan**. Form fields:
 
-- **Target URL**: `http://host.docker.internal:9001/sse` _(DVMCP challenge 1, runs locally on Spieon's docker host. Use `host.docker.internal` because DVMCP is on docker's `bridge` network and the backend is on `spieon_default` — they don't share a namespace.)_
+- **Target URL**: a **publicly reachable** MCP or x402 endpoint the production backend can access. If you still want to use the local DVMCP SSE target, keep the live-scan beat on the local stack instead of the hosted one.
 - **Operator address**: any 0x address (your wallet)
 - **Budget**: `0.50` USDC · **Bounty**: `5.0` USDC
 - **Recipient key**: click **Generate**, then **Download**
@@ -174,7 +176,7 @@ Click **Scan**. Form fields:
 
 Browser auto-redirects to `/scan/<id>`. The narration WebSocket streams:
 
-1. _recon_ — "Inspecting http://host.docker.internal:9001/sse (target_type=mcp-sse)"
+1. _recon_ — "Inspecting <target> (target_type=...)"
 2. _plan_ — real gpt-oss-120b rationale, e.g. _"For an MCP SSE endpoint, schema and tool description injection probes directly test LLM handling…"_
 3. _probe_ — "Ran 2 probes, 0 findings…"
 4. _reflect_ — real gpt-oss-120b decision, e.g. _"Reflect: continue_planned. We've executed two probes without findings and only have one iteration left…"_
@@ -185,11 +187,10 @@ Browser auto-redirects to `/scan/<id>`. The narration WebSocket streams:
 This is the "watch the agent think" beat. Total time ≈ 60–90s. Voice over the
 plan and reflect rationales — they're the demo's centerpiece.
 
-> **Why no findings?** DVMCP serves the legacy MCP **SSE transport**; Spieon's
-> native probes POST streamable-HTTP-style JSON-RPC and don't complete the SSE
-> handshake. The probes return cleanly with `vulnerable=false`. This is a known
-> gap — the workflow itself is fully functional. Keep voice-over tight here so
-> attention is on the reasoning, not the zero finding count.
+> **Why might the live scan show zero findings?** That's acceptable for the
+> hosted demo. The live beat is there to show planning, reflection, adaptation,
+> and budget-aware execution. The attestation and payout proof beats come from
+> seeded scans with stable onchain artifacts.
 
 ### Beat 4 — Attestation (2:30–3:00)
 
@@ -242,9 +243,11 @@ Voice the line from PRD §2 — "Spieon is open source. Every scan public…"
 
 ## 4. Recording mechanics
 
-- Use `localhost:3000`, **not** the LAN IP (`192.168.x.x`). Web Crypto
-  (`crypto.subtle.importKey`) only works on secure contexts and rejects
-  HTTP+LAN-IP origins.
+- Prefer `https://spieon.agicitizens.com` for the actual demo take. HTTPS
+  satisfies the Web Crypto secure-context requirement for recipient key
+  generation.
+- Use localhost only if your chosen live target is reachable from your laptop
+  but not from the production backend.
 - Browser at 1440×900 or 1920×1080 zoomed so wallet addresses + attestation
   hashes are legible.
 - Hide bookmarks bar, close other tabs, silence notifications, DnD on.
@@ -256,7 +259,7 @@ Voice the line from PRD §2 — "Spieon is open source. Every scan public…"
 
 ```bash
 # 1. backend healthy
-curl -s http://localhost:8000/health
+curl -s https://api-spieon.agicitizens.com/health
 # expect: {"status":"ok","db":true}
 
 # 2. OpenRouter key still works
@@ -276,12 +279,12 @@ curl -s 'https://base-sepolia.easscan.org/graphql' -H 'Content-Type: application
 # expect: {"data":{"attestation":{"id":"0x5c9d…","attester":"0xf89BD3…"}}}
 
 # 5. ENS identity flowing live from Sepolia (sponsor: ENS)
-curl -s http://localhost:8000/.well-known/agent.json | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('ens'))"
+curl -s https://api-spieon.agicitizens.com/.well-known/agent.json | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('ens'))"
 # expect: dict with 'name' = 'spieon-agent.eth' and 'textRecords' containing 'url', 'description', etc.
 #         (if textRecords only has 'avatar', re-run scripts/ens_setup.py before the take)
 
 # 6. KeeperHub workflow installed (sponsor: KeeperHub)
-curl -s http://localhost:8000/keeperhub/status
+curl -s https://api-spieon.agicitizens.com/keeperhub/status
 # expect: {"configured": true, "api_key_present": true, "workflow_id": "wf_…", ...}
 # if "configured": false → either the kh_ key is wrong or KEEPERHUB_PAYOUT_WORKFLOW_ID is unset
 

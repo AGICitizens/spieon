@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import uuid
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -13,6 +15,10 @@ from app.models.scan import Scan
 from app.realtime import narration_broker
 
 router = APIRouter(tags=["ws"])
+
+
+def _sse_frame(payload: dict) -> bytes:
+    return f"data: {json.dumps(payload, separators=(',', ':'))}\n\n".encode("utf-8")
 
 
 async def _scan_exists(session: AsyncSession, scan_id: uuid.UUID) -> bool:
@@ -75,3 +81,45 @@ async def scan_narration(websocket: WebSocket, scan_id: uuid.UUID) -> None:
         pass
     finally:
         await narration_broker.unsubscribe(scan_id, queue)
+
+
+@router.get("/sse/scans/{scan_id}")
+async def scan_narration_sse(request: Request, scan_id: uuid.UUID) -> StreamingResponse:
+    sessionmaker = get_sessionmaker()
+
+    async with sessionmaker() as session:
+        if not await _scan_exists(session, scan_id):
+            async def not_found() -> asyncio.AsyncIterator[bytes]:
+                yield _sse_frame({"type": "error", "error": "scan not found"})
+
+            return StreamingResponse(not_found(), media_type="text/event-stream")
+        history = await _replay_history(session, scan_id)
+
+    queue = await narration_broker.subscribe(scan_id)
+
+    async def event_stream():
+        try:
+            for event in history:
+                yield _sse_frame({"type": "narration", "event": event})
+            yield _sse_frame({"type": "ready"})
+
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=15.0)
+                    yield _sse_frame({"type": "narration", "event": event})
+                except TimeoutError:
+                    yield _sse_frame({"type": "ping"})
+        finally:
+            await narration_broker.unsubscribe(scan_id, queue)
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )

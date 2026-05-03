@@ -7,8 +7,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from app.api.schemas import ScanCreate, ScanRead
+from app.api.schemas import NarrationEventRead, ScanCreate, ScanRead
 from app.db import get_session
+from app.models.narration import NarrationEvent
 from app.models.scan import Scan, ScanStatus
 from app.workflow.runner import start_scan_workflow
 
@@ -62,5 +63,24 @@ async def list_scans(
 ) -> list[Scan]:
     result = await session.execute(
         select(Scan).order_by(Scan.created_at.desc()).limit(min(limit, 200))
+    )
+    return list(result.scalars().all())
+
+
+@router.get("/{scan_id}/narration", response_model=list[NarrationEventRead])
+async def list_scan_narration(
+    scan_id: uuid.UUID,
+    limit: int = 200,
+    session: AsyncSession = Depends(get_session),
+) -> list[NarrationEvent]:
+    scan_result = await session.execute(select(Scan.id).where(Scan.id == scan_id))
+    if scan_result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="scan not found")
+
+    result = await session.execute(
+        select(NarrationEvent)
+        .where(NarrationEvent.scan_id == scan_id)
+        .order_by(NarrationEvent.created_at.asc())
+        .limit(min(limit, 500))
     )
     return list(result.scalars().all())

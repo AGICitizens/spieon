@@ -1,4 +1,4 @@
-import { api, type Finding, type Scan } from "@/lib/api";
+import { api, type Finding, type NarrationEvent, type Scan } from "@/lib/api";
 import { EmptyState, PageHeader, Panel, StatusPill } from "@/components/ui";
 import DecryptPanel from "./DecryptPanel";
 import LiveRefresh from "./LiveRefresh";
@@ -38,12 +38,14 @@ export default async function ScanDetailPage({
   const { id } = await params;
 
   let findings: Finding[] = [];
+  let narration: NarrationEvent[] = [];
   let scan: Scan | null = null;
   let scanError: string | null = null;
   try {
-    [findings, scan] = await Promise.all([
+    [findings, scan, narration] = await Promise.all([
       api.listFindings({ scanId: id }),
       api.getScan(id).catch(() => null),
+      api.listNarration(id).catch(() => []),
     ]);
   } catch (err) {
     scanError = (err as Error).message;
@@ -118,7 +120,11 @@ export default async function ScanDetailPage({
         </Panel>
       ) : null}
 
-      <NarrationStream scanId={id} scanStatus={scan?.status ?? null} />
+      <NarrationStream
+        scanId={id}
+        scanStatus={scan?.status ?? null}
+        initialEvents={narration}
+      />
 
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-3">

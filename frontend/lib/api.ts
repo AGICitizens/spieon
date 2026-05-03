@@ -35,6 +35,27 @@ export type Scan = {
   updated_at: string;
 };
 
+export type NarrationEvent = {
+  id: string;
+  scan_id: string;
+  phase:
+    | "recon"
+    | "plan"
+    | "probe"
+    | "reflect"
+    | "adapt"
+    | "verify"
+    | "attest"
+    | "consolidate";
+  success_signal: boolean | null;
+  target_observations: Record<string, unknown>;
+  decision: string | null;
+  next_action: string | null;
+  content: string;
+  context: Record<string, unknown>;
+  created_at: string;
+};
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const controller = new AbortController();
   const abortSignal = init?.signal;
@@ -181,6 +202,10 @@ export const api = {
   health: () => request<Health>("/health"),
   listScans: () => request<Scan[]>("/scans"),
   getScan: (id: string) => request<Scan>(`/scans/${id}`),
+  listNarration: (id: string, limit?: number) =>
+    request<NarrationEvent[]>(
+      `/scans/${id}/narration${limit ? `?limit=${limit}` : ""}`,
+    ),
   createScan: (input: {
     target_url: string;
     operator_address: string;

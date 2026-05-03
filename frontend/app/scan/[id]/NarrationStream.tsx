@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { type NarrationEvent, type WsMessage, wsBaseUrl } from "@/lib/ws";
+import type { NarrationEvent } from "@/lib/api";
+import { sseBaseUrl, type WsMessage } from "@/lib/ws";
 
 const PHASE_STYLE: Record<NarrationEvent["phase"], string> = {
   recon:
@@ -44,16 +45,24 @@ type ConnectionState = "connecting" | "open" | "closed";
 export default function NarrationStream({
   scanId,
   scanStatus,
+  initialEvents,
 }: {
   scanId: string;
   scanStatus?: string | null;
+  initialEvents?: NarrationEvent[];
 }) {
-  const [events, setEvents] = useState<NarrationEvent[]>([]);
-  const [state, setState] = useState<ConnectionState>("connecting");
+  const [events, setEvents] = useState<NarrationEvent[]>(initialEvents ?? []);
+  const [state, setState] = useState<ConnectionState>(
+    scanStatus && !IN_FLIGHT_STATUSES.has(scanStatus) ? "closed" : "connecting",
+  );
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  const wsRef = useRef<WebSocket | null>(null);
+  const streamRef = useRef<EventSource | null>(null);
   const inFlight = scanStatus ? IN_FLIGHT_STATUSES.has(scanStatus) : true;
+
+  useEffect(() => {
+    setEvents(initialEvents ?? []);
+  }, [initialEvents]);
 
   useEffect(() => {
     if (!inFlight) return;
@@ -62,18 +71,39 @@ export default function NarrationStream({
   }, [inFlight]);
 
   useEffect(() => {
-    const url = `${wsBaseUrl()}/ws/scans/${scanId}`;
-    const ws = new WebSocket(url);
-    wsRef.current = ws;
+    if (!inFlight) {
+      setState("closed");
+      return;
+    }
+    const url = `${sseBaseUrl()}/sse/scans/${scanId}`;
+    const stream = new EventSource(url);
+    streamRef.current = stream;
+    let opened = false;
+    const failOpenId = window.setTimeout(() => {
+      if (!opened) {
+        setState("closed");
+        setError("live stream unavailable; showing recorded events");
+      }
+    }, 5000);
 
-    ws.onopen = () => setState("open");
-    ws.onclose = () => setState("closed");
-    ws.onerror = () => setError("websocket error");
-    ws.onmessage = (raw) => {
+    stream.onopen = () => {
+      opened = true;
+      window.clearTimeout(failOpenId);
+      setState("open");
+    };
+    stream.onerror = () => {
+      if (!opened) {
+        setState("closed");
+        setError("live stream unavailable; showing recorded events");
+      }
+    };
+    stream.onmessage = (raw) => {
       try {
         const msg = JSON.parse(raw.data) as WsMessage;
         if (msg.type === "narration") {
-          setEvents((prev) => [...prev, msg.event]);
+          setEvents((prev) =>
+            prev.some((event) => event.id === msg.event.id) ? prev : [...prev, msg.event],
+          );
         } else if (msg.type === "error") {
           setError(msg.error);
         }
@@ -83,10 +113,11 @@ export default function NarrationStream({
     };
 
     return () => {
-      ws.close();
-      wsRef.current = null;
+      window.clearTimeout(failOpenId);
+      stream.close();
+      streamRef.current = null;
     };
-  }, [scanId]);
+  }, [scanId, inFlight]);
 
   return (
     <div className="space-y-4">
@@ -127,6 +158,11 @@ export default function NarrationStream({
           <li className="editorial-card flex items-center gap-2 p-4 text-sm text-[var(--muted)]">
             <Spinner />
             Connected. Waiting for the agent's first narration event…
+          </li>
+        ) : null}
+        {events.length === 0 && !inFlight ? (
+          <li className="editorial-card p-4 text-sm text-[var(--muted)]">
+            No narration events were recorded for this scan.
           </li>
         ) : null}
         {inFlight && events.length > 0 ? (

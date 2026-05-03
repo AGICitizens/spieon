@@ -6,6 +6,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
+from app.models.narration import Phase
 from app.models.scan import ScanStatus
 
 
@@ -34,3 +35,16 @@ class ScanRead(BaseModel):
     error: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class NarrationEventRead(BaseModel):
+    id: uuid.UUID
+    scan_id: uuid.UUID
+    phase: Phase
+    success_signal: bool | None
+    target_observations: dict
+    decision: str | None
+    next_action: str | None
+    content: str
+    context: dict
+    created_at: datetime
