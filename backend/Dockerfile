@@ -19,14 +19,13 @@ WORKDIR /app
 # Install deps first (cache layer) — copy only the project metadata
 COPY pyproject.toml uv.lock* ./
 
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-install-project 2>/dev/null || uv sync --no-install-project
+RUN uv sync --frozen --no-install-project 2>/dev/null || uv sync --no-install-project
 
 # Copy source
 COPY . .
 
 # Install the project itself
-RUN --mount=type=cache,target=/root/.cache/uv uv sync
+RUN uv sync
 
 EXPOSE 8000
 
