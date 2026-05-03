@@ -93,16 +93,56 @@ curl -s http://127.0.0.1:8000/health
 
 ## 5. nginx + TLS
 
+The vhost references `/etc/letsencrypt/live/api-spieon.agicitizens.com/...` for
+its cert paths, so it can't be enabled until the cert exists. Bootstrap order:
+
 ```bash
+# 5.1 Install nginx if you haven't already, but don't enable our vhost yet.
+sudo apt-get install -y nginx certbot python3-certbot-nginx
+
+# 5.2 Stop nginx so port 80 is free for certbot --standalone.
+sudo systemctl stop nginx
+
+# 5.3 Get the cert. Replace the email with yours for renewal notices.
+sudo certbot certonly --standalone \
+    -d api-spieon.agicitizens.com \
+    --non-interactive --agree-tos -m you@example.com
+
+# Verify the cert landed:
+sudo ls /etc/letsencrypt/live/api-spieon.agicitizens.com/
+# expect: cert.pem  chain.pem  fullchain.pem  privkey.pem
+
+# 5.4 Now install the vhost and start nginx.
 sudo cp /opt/spieon/deploy/nginx/api-spieon.agicitizens.com.conf \
         /etc/nginx/sites-available/
-sudo ln -s /etc/nginx/sites-available/api-spieon.agicitizens.com.conf \
-           /etc/nginx/sites-enabled/
+sudo ln -sf /etc/nginx/sites-available/api-spieon.agicitizens.com.conf \
+            /etc/nginx/sites-enabled/
 
-# Get the cert. certbot will edit the vhost and reload nginx itself.
-sudo certbot --nginx -d api-spieon.agicitizens.com
+sudo nginx -t
+sudo systemctl start nginx
+```
 
-sudo nginx -t && sudo systemctl reload nginx
+Auto-renewal runs from the `certbot.timer` systemd unit installed with the
+package. `sudo systemctl status certbot.timer` to confirm. Renewal uses the
+nginx hook (since the vhost listens on :80 with the acme-challenge passthrough),
+so nginx does NOT need to be stopped at renewal time — only the initial cert
+acquisition above used `--standalone`.
+
+### Recovery — if you already installed the vhost before getting the cert
+
+If you hit `unknown directive "http2"` or `cannot load certificate` errors when
+reloading nginx, you installed the vhost too early. Recover with:
+
+```bash
+sudo rm -f /etc/nginx/sites-enabled/api-spieon.agicitizens.com.conf
+sudo systemctl stop nginx
+sudo certbot certonly --standalone -d api-spieon.agicitizens.com \
+    --non-interactive --agree-tos -m you@example.com
+cd /opt/spieon && git pull   # pick up any vhost fixes
+sudo cp deploy/nginx/api-spieon.agicitizens.com.conf /etc/nginx/sites-available/
+sudo ln -sf /etc/nginx/sites-available/api-spieon.agicitizens.com.conf \
+            /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl start nginx
 ```
 
 Verify from your laptop:
