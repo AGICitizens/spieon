@@ -93,56 +93,56 @@ curl -s http://127.0.0.1:8000/health
 
 ## 5. nginx + TLS
 
-The vhost references `/etc/letsencrypt/live/api-spieon.agicitizens.com/...` for
-its cert paths, so it can't be enabled until the cert exists. Bootstrap order:
+The shipped vhost is HTTP-only on purpose — `certbot --nginx` will edit it in
+place to add the TLS listener and cert paths once the cert is obtained. nginx
+keeps serving traffic the whole time; no `systemctl stop` needed.
 
 ```bash
-# 5.1 Install nginx if you haven't already, but don't enable our vhost yet.
 sudo apt-get install -y nginx certbot python3-certbot-nginx
 
-# 5.2 Stop nginx so port 80 is free for certbot --standalone.
-sudo systemctl stop nginx
-
-# 5.3 Get the cert. Replace the email with yours for renewal notices.
-sudo certbot certonly --standalone \
-    -d api-spieon.agicitizens.com \
-    --non-interactive --agree-tos -m you@example.com
-
-# Verify the cert landed:
-sudo ls /etc/letsencrypt/live/api-spieon.agicitizens.com/
-# expect: cert.pem  chain.pem  fullchain.pem  privkey.pem
-
-# 5.4 Now install the vhost and start nginx.
+# 5.1 Install the HTTP-only vhost.
 sudo cp /opt/spieon/deploy/nginx/api-spieon.agicitizens.com.conf \
         /etc/nginx/sites-available/
 sudo ln -sf /etc/nginx/sites-available/api-spieon.agicitizens.com.conf \
             /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
 
+# 5.2 Confirm DNS resolves to this VPS — certbot's HTTP-01 challenge needs
+#     api-spieon.agicitizens.com to reach nginx on :80 from the public internet.
+dig +short api-spieon.agicitizens.com
+# expect: <your VPS IPv4>
+
+# 5.3 Get the cert. certbot will edit the vhost to add `listen 443 ssl;` +
+#     ssl_certificate paths and add a small redirect server. Replace the email.
+sudo certbot --nginx -d api-spieon.agicitizens.com \
+    --non-interactive --agree-tos --redirect -m you@example.com
+
+# 5.4 Verify.
 sudo nginx -t
-sudo systemctl start nginx
+curl -s https://api-spieon.agicitizens.com/health
+# expect: {"status":"ok","db":true}
 ```
 
-Auto-renewal runs from the `certbot.timer` systemd unit installed with the
-package. `sudo systemctl status certbot.timer` to confirm. Renewal uses the
-nginx hook (since the vhost listens on :80 with the acme-challenge passthrough),
-so nginx does NOT need to be stopped at renewal time — only the initial cert
-acquisition above used `--standalone`.
+Auto-renewal runs from the package's `certbot.timer` systemd unit (verify with
+`sudo systemctl status certbot.timer`). Renewals reuse the nginx authenticator
+and reload nginx automatically — nothing on this server needs touching again
+unless the vhost itself changes.
 
-### Recovery — if you already installed the vhost before getting the cert
+### Recovery — if you installed an earlier vhost that referenced cert paths
 
-If you hit `unknown directive "http2"` or `cannot load certificate` errors when
-reloading nginx, you installed the vhost too early. Recover with:
+Older revisions of the vhost shipped with `listen 443 ssl;` + cert paths baked
+in, which fails on a fresh box because the cert files don't exist yet. Recover:
 
 ```bash
 sudo rm -f /etc/nginx/sites-enabled/api-spieon.agicitizens.com.conf
-sudo systemctl stop nginx
-sudo certbot certonly --standalone -d api-spieon.agicitizens.com \
-    --non-interactive --agree-tos -m you@example.com
-cd /opt/spieon && git pull   # pick up any vhost fixes
-sudo cp deploy/nginx/api-spieon.agicitizens.com.conf /etc/nginx/sites-available/
+cd /opt/spieon && git pull        # pick up the HTTP-only vhost
+sudo cp deploy/nginx/api-spieon.agicitizens.com.conf \
+        /etc/nginx/sites-available/
 sudo ln -sf /etc/nginx/sites-available/api-spieon.agicitizens.com.conf \
             /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl start nginx
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d api-spieon.agicitizens.com \
+    --non-interactive --agree-tos --redirect -m you@example.com
 ```
 
 Verify from your laptop:
