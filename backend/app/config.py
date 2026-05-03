@@ -1,11 +1,56 @@
 from functools import lru_cache
+from pathlib import Path
+from urllib.parse import quote, urlsplit, urlunsplit
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _running_in_container() -> bool:
+    return Path("/.dockerenv").exists()
+
+
+def _replace_hostname(
+    url: str,
+    current_host: str,
+    next_host: str,
+    next_port: int | None = None,
+) -> str:
+    parts = urlsplit(url)
+    if parts.hostname != current_host:
+        return url
+
+    userinfo = ""
+    if parts.username is not None:
+        userinfo = quote(parts.username, safe="")
+        if parts.password is not None:
+            userinfo += f":{quote(parts.password, safe='')}"
+        userinfo += "@"
+
+    host = next_host
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+    port = parts.port if next_port is None else next_port
+    if port is not None:
+        host = f"{host}:{port}"
+
+    return urlunsplit(
+        (
+            parts.scheme,
+            f"{userinfo}{host}",
+            parts.path,
+            parts.query,
+            parts.fragment,
+        )
+    )
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(REPO_ROOT / ".env", BACKEND_ROOT / ".env"),
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=False,
@@ -89,6 +134,25 @@ class Settings(BaseSettings):
     ipfs_pinning_endpoint: str = ""
     ipfs_pinning_token: str = ""
     bundle_local_dir: str = "/tmp/spieon-bundles"
+
+    @model_validator(mode="after")
+    def normalize_local_service_hosts(self) -> "Settings":
+        if _running_in_container():
+            return self
+
+        self.database_url = _replace_hostname(self.database_url, "postgres", "localhost")
+        self.database_url_sync = _replace_hostname(
+            self.database_url_sync,
+            "postgres",
+            "localhost",
+        )
+        self.langfuse_host = _replace_hostname(
+            self.langfuse_host,
+            "langfuse",
+            "localhost",
+            3001,
+        )
+        return self
 
     @property
     def cors_origins_list(self) -> list[str]:

@@ -31,7 +31,6 @@ from web3.middleware import SignAndSendRawMiddlewareBuilder
 
 from app.config import get_settings
 
-
 REVERSE_REGISTRAR_ABI = [
     {
         "inputs": [{"internalType": "string", "name": "name", "type": "string"}],

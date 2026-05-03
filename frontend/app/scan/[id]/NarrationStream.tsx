@@ -4,14 +4,21 @@ import { useEffect, useRef, useState } from "react";
 import { type NarrationEvent, type WsMessage, wsBaseUrl } from "@/lib/ws";
 
 const PHASE_STYLE: Record<NarrationEvent["phase"], string> = {
-  recon: "border-sky-700 bg-sky-950/40 text-sky-200",
-  plan: "border-indigo-700 bg-indigo-950/40 text-indigo-200",
-  probe: "border-orange-700 bg-orange-950/40 text-orange-200",
-  reflect: "border-cyan-700 bg-cyan-950/40 text-cyan-200",
-  adapt: "border-amber-700 bg-amber-950/40 text-amber-200",
-  verify: "border-emerald-700 bg-emerald-950/40 text-emerald-200",
-  attest: "border-purple-700 bg-purple-950/40 text-purple-200",
-  consolidate: "border-zinc-700 bg-zinc-950/40 text-zinc-200",
+  recon:
+    "border-[color:color-mix(in_srgb,var(--info)_40%,black_10%)] bg-[color:color-mix(in_srgb,var(--info)_8%,white_92%)] text-[color:color-mix(in_srgb,var(--info)_82%,black_18%)]",
+  plan:
+    "border-[color:color-mix(in_srgb,var(--accent)_40%,black_10%)] bg-[color:color-mix(in_srgb,var(--accent)_8%,white_92%)] text-[color:color-mix(in_srgb,var(--accent)_82%,black_18%)]",
+  probe:
+    "border-[color:color-mix(in_srgb,var(--warning)_40%,black_10%)] bg-[color:color-mix(in_srgb,var(--warning)_8%,white_92%)] text-[color:color-mix(in_srgb,var(--warning)_85%,black_15%)]",
+  reflect:
+    "border-[color:color-mix(in_srgb,var(--info)_40%,black_10%)] bg-[color:color-mix(in_srgb,var(--info)_8%,white_92%)] text-[color:color-mix(in_srgb,var(--info)_82%,black_18%)]",
+  adapt:
+    "border-[color:color-mix(in_srgb,var(--warning)_40%,black_10%)] bg-[color:color-mix(in_srgb,var(--warning)_8%,white_92%)] text-[color:color-mix(in_srgb,var(--warning)_85%,black_15%)]",
+  verify:
+    "border-[color:color-mix(in_srgb,var(--success)_40%,black_10%)] bg-[color:color-mix(in_srgb,var(--success)_8%,white_92%)] text-[color:color-mix(in_srgb,var(--success)_82%,black_18%)]",
+  attest:
+    "border-[color:color-mix(in_srgb,var(--accent)_40%,black_10%)] bg-[color:color-mix(in_srgb,var(--accent)_8%,white_92%)] text-[color:color-mix(in_srgb,var(--accent)_82%,black_18%)]",
+  consolidate: "border-[var(--line-strong)] bg-[var(--panel)] text-[var(--ink)]",
 };
 
 const NEXT_PHASE_HINT: Record<NarrationEvent["phase"], string> = {
@@ -82,21 +89,23 @@ export default function NarrationStream({
   }, [scanId]);
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-3 text-xs text-zinc-500">
-        <span className="rounded border border-zinc-800 px-2 py-0.5">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--muted)]">
+        <span className="border border-[var(--line-strong)] px-2.5 py-1 font-editorial-mono uppercase tracking-[0.18em]">
           {state}
         </span>
-        <span>{events.length} events</span>
-        {error ? <span className="text-red-400">· {error}</span> : null}
+        <span className="font-editorial-mono uppercase tracking-[0.18em]">
+          {events.length} events
+        </span>
+        {error ? <span className="text-[var(--danger)]">· {error}</span> : null}
       </div>
       <ol className="space-y-2">
         {events.map((event) => (
           <li
             key={event.id}
-            className={`rounded-md border px-3 py-2 text-sm ${PHASE_STYLE[event.phase]}`}
+            className={`border px-4 py-3 text-sm ${PHASE_STYLE[event.phase]}`}
           >
-            <div className="flex items-baseline justify-between gap-3 text-xs uppercase tracking-wide opacity-70">
+            <div className="flex items-baseline justify-between gap-3 font-editorial-mono text-[0.68rem] uppercase tracking-[0.18em] opacity-75">
               <span>{event.phase}</span>
               <span>
                 {new Date(event.created_at).toLocaleTimeString(undefined, {
@@ -104,9 +113,9 @@ export default function NarrationStream({
                 })}
               </span>
             </div>
-            <p className="mt-1 text-sm">{event.content}</p>
+            <p className="mt-2 text-sm leading-6">{event.content}</p>
             {event.decision || event.next_action ? (
-              <p className="mt-1 text-xs opacity-70">
+              <p className="mt-2 text-xs leading-5 opacity-75">
                 {event.decision ? `decision: ${event.decision}` : ""}
                 {event.decision && event.next_action ? " · " : ""}
                 {event.next_action ? `next: ${event.next_action}` : ""}
@@ -115,18 +124,18 @@ export default function NarrationStream({
           </li>
         ))}
         {events.length === 0 && state === "open" && inFlight ? (
-          <li className="flex items-center gap-2 text-sm text-zinc-500">
+          <li className="editorial-card flex items-center gap-2 p-4 text-sm text-[var(--muted)]">
             <Spinner />
             Connected. Waiting for the agent's first narration event…
           </li>
         ) : null}
         {inFlight && events.length > 0 ? (
-          <li className="flex items-center gap-2 rounded-md border border-dashed border-zinc-700 bg-zinc-950/40 px-3 py-2 text-sm text-zinc-400">
+          <li className="editorial-card flex items-center gap-2 border-dashed p-4 text-sm text-[var(--muted)]">
             <Spinner />
             <span>
               {NEXT_PHASE_HINT[events[events.length - 1].phase]}
             </span>
-            <span className="ml-auto text-xs text-zinc-500">
+            <span className="ml-auto font-editorial-mono text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
               {formatElapsed(now - new Date(events[events.length - 1].created_at).getTime())} since last event
             </span>
           </li>
@@ -140,7 +149,7 @@ function Spinner() {
   return (
     <span
       aria-hidden
-      className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-200"
+      className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[var(--line-strong)] border-t-[var(--ink)]"
     />
   );
 }

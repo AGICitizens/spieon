@@ -1,11 +1,15 @@
 import Link from "next/link";
 import { api, type Finding } from "@/lib/api";
+import { EmptyState, PageHeader, Panel, StatusPill } from "@/components/ui";
 
-const SEVERITY_STYLE: Record<Finding["severity"], string> = {
-  low: "bg-zinc-900 text-zinc-300 border-zinc-700",
-  medium: "bg-amber-950/40 text-amber-200 border-amber-700",
-  high: "bg-orange-950/40 text-orange-200 border-orange-700",
-  critical: "bg-red-950/40 text-red-200 border-red-700",
+const SEVERITY_STYLE: Record<
+  Finding["severity"],
+  "neutral" | "warning" | "danger"
+> = {
+  low: "neutral",
+  medium: "warning",
+  high: "warning",
+  critical: "danger",
 };
 
 function formatUsdc(value: string) {
@@ -23,37 +27,76 @@ export default async function FindingsPage() {
     error = (err as Error).message;
   }
 
+  const critical = findings.filter((finding) => finding.severity === "critical").length;
+  const totalCost = findings.reduce((sum, finding) => {
+    const num = Number(finding.cost_usdc);
+    return Number.isNaN(num) ? sum : sum + num;
+  }, 0);
+
   return (
-    <section className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold">Findings</h1>
-        <p className="mt-1 text-sm text-zinc-400">
-          Global metadata feed. Bundles stay encrypted to the operator's age
-          recipient — only the cipher digest is published.
-        </p>
-      </header>
+    <section className="space-y-8">
+      <PageHeader
+        eyebrow="Attested Findings"
+        title={
+          <>
+            Review the
+            <br />
+            signal that
+            <br />
+            survived
+            <br />
+            verification.
+          </>
+        }
+        description={
+          <>
+            This feed exposes only public metadata. Full evidence bundles stay
+            encrypted to the operator who submitted the scan, while the
+            attestation trail remains visible for everyone else.
+          </>
+        }
+        aside={
+          <div className="grid grid-cols-2 gap-3">
+            <Stat label="total" value={String(findings.length)} />
+            <Stat label="critical" value={String(critical)} />
+            <Stat label="cost" value={formatUsdc(String(totalCost))} />
+            <Stat label="window" value="100 rows" />
+          </div>
+        }
+      />
 
       {error ? (
-        <p className="text-sm text-red-400">backend unreachable: {error}</p>
+        <EmptyState
+          title="Backend unreachable"
+          description={error}
+        />
       ) : findings.length === 0 ? (
-        <p className="text-sm text-zinc-500">No findings yet.</p>
+        <EmptyState
+          title="No findings yet"
+          description="Run scans first and attested findings will accumulate here with severity, cost, and the public evidence trail."
+        />
       ) : (
-        <ul className="space-y-3">
+        <ul className="space-y-4">
           {findings.map((f) => (
-            <li
-              key={f.id}
-              className="rounded-md border border-zinc-800 bg-zinc-950/40 p-4"
-            >
+            <li key={f.id}>
+              <Panel>
               <div className="flex flex-wrap items-baseline justify-between gap-3">
-                <h2 className="font-medium text-zinc-100">{f.title}</h2>
-                <span
-                  className={`rounded border px-2 py-0.5 text-xs uppercase tracking-wide ${SEVERITY_STYLE[f.severity]}`}
-                >
+                <div className="space-y-2">
+                  <p className="font-editorial-mono text-[0.68rem] uppercase tracking-[0.18em] text-[var(--muted)]">
+                    finding / {f.id.slice(0, 8)}
+                  </p>
+                  <h2 className="font-editorial-sans text-2xl font-semibold uppercase leading-tight">
+                    {f.title}
+                  </h2>
+                </div>
+                <StatusPill tone={SEVERITY_STYLE[f.severity]}>
                   {f.severity}
-                </span>
+                </StatusPill>
               </div>
-              <p className="mt-2 text-sm text-zinc-400">{f.summary}</p>
-              <dl className="mt-3 grid gap-x-6 gap-y-2 text-xs text-zinc-500 sm:grid-cols-2 lg:grid-cols-4">
+              <p className="mt-4 max-w-4xl text-sm leading-6 text-[var(--muted)]">
+                {f.summary}
+              </p>
+              <dl className="mt-5 grid gap-x-6 gap-y-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
                 {f.target_url ? (
                   <Field label="target" value={f.target_url} mono />
                 ) : null}
@@ -81,18 +124,30 @@ export default async function FindingsPage() {
                   value={
                     <Link
                       href={`/scan/${f.scan_id}`}
-                      className="font-mono text-zinc-300 hover:text-zinc-100"
+                      className="font-editorial-mono text-[var(--ink)] underline decoration-[var(--line-strong)] underline-offset-4"
                     >
                       {f.scan_id.slice(0, 8)}…
                     </Link>
                   }
                 />
               </dl>
+              </Panel>
             </li>
           ))}
         </ul>
       )}
     </section>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="editorial-card space-y-2 p-4">
+      <p className="font-editorial-mono text-[0.68rem] uppercase tracking-[0.18em] text-[var(--muted)]">
+        {label}
+      </p>
+      <p className="font-editorial-mono text-lg text-[var(--ink)]">{value}</p>
+    </div>
   );
 }
 
@@ -107,8 +162,12 @@ function Field({
 }) {
   return (
     <div>
-      <dt className="text-zinc-500">{label}</dt>
-      <dd className={`text-zinc-300 ${mono ? "font-mono" : ""}`}>{value}</dd>
+      <dt className="font-editorial-mono uppercase tracking-[0.18em] text-[var(--muted)]">
+        {label}
+      </dt>
+      <dd className={`mt-1 text-sm text-[var(--ink)] ${mono ? "font-editorial-mono" : ""}`}>
+        {value}
+      </dd>
     </div>
   );
 }

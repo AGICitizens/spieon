@@ -1,4 +1,5 @@
 import { api, type ModuleEntry } from "@/lib/api";
+import { EmptyState, PageHeader, Panel } from "@/components/ui";
 
 function shorten(addr: string | null) {
   if (!addr) return "—";
@@ -21,66 +22,104 @@ export default async function LeaderboardPage() {
   }
 
   const ranked = modules
-    .filter((m) => m.findings_landed > 0 || m.success_count > 0)
+    .filter((module) => module.findings_landed > 0 || module.success_count > 0)
     .slice(0, 25);
 
   return (
-    <section className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold">Leaderboard</h1>
-        <p className="mt-1 text-sm text-zinc-400">
-          Module authors ranked by findings landed and bounties earned.
-        </p>
-      </header>
+    <section className="space-y-8">
+      <PageHeader
+        eyebrow="Module Leaderboard"
+        title={
+          <>
+            Reward the
+            <br />
+            authors whose
+            <br />
+            probes produce
+            <br />
+            real signal.
+          </>
+        }
+        description={
+          <>
+            Rankings combine landed findings, successful executions, and bounty
+            earnings so the highest-value module authors are immediately visible.
+          </>
+        }
+        aside={
+          <div className="grid grid-cols-2 gap-3">
+            <Stat label="ranked" value={String(ranked.length)} />
+            <Stat
+              label="earning"
+              value={String(
+                ranked.filter((module) => Number(module.bounties_earned_usdc) > 0).length,
+              )}
+            />
+          </div>
+        }
+      />
 
       {error ? (
-        <p className="text-sm text-red-400">backend unreachable: {error}</p>
+        <EmptyState title="Backend unreachable" description={error} />
       ) : ranked.length === 0 ? (
-        <p className="text-sm text-zinc-500">
-          No author has earned a bounty yet — leaderboard will fill in after the
-          first paid finding lands.
-        </p>
+        <EmptyState
+          title="Leaderboard empty"
+          description="Once authors start landing findings and collecting bounties, the leaderboard will rank them here."
+        />
       ) : (
-        <div className="overflow-x-auto rounded-md border border-zinc-800">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-zinc-950/60 text-xs uppercase tracking-wide text-zinc-500">
+        <Panel className="overflow-x-auto p-0">
+          <table className="w-full min-w-[720px] text-left text-sm">
+            <thead className="border-b border-[var(--line-strong)] bg-[var(--panel-strong)] font-editorial-mono text-[0.68rem] uppercase tracking-[0.18em] text-[var(--muted)]">
               <tr>
-                <th className="px-3 py-2">#</th>
-                <th className="px-3 py-2">probe</th>
-                <th className="px-3 py-2">author</th>
-                <th className="px-3 py-2 text-right">findings</th>
-                <th className="px-3 py-2 text-right">success</th>
-                <th className="px-3 py-2 text-right">bounties</th>
+                <th className="px-4 py-3">#</th>
+                <th className="px-4 py-3">probe</th>
+                <th className="px-4 py-3">author</th>
+                <th className="px-4 py-3 text-right">findings</th>
+                <th className="px-4 py-3 text-right">success</th>
+                <th className="px-4 py-3 text-right">bounties</th>
               </tr>
             </thead>
             <tbody>
-              {ranked.map((m, i) => (
+              {ranked.map((module, index) => (
                 <tr
-                  key={m.module_hash}
-                  className="border-t border-zinc-900 hover:bg-zinc-950/40"
+                  key={module.module_hash}
+                  className="border-t border-[var(--line)] bg-[var(--panel)] hover:bg-[var(--panel-strong)]"
                 >
-                  <td className="px-3 py-2 text-zinc-500">{i + 1}</td>
-                  <td className="px-3 py-2 font-mono text-zinc-200">
-                    {m.probe_id ?? "—"}
+                  <td className="px-4 py-3 font-editorial-mono text-[var(--muted)]">
+                    {index + 1}
                   </td>
-                  <td className="px-3 py-2 font-mono text-zinc-400">
-                    {shorten(m.author_address)}
+                  <td className="px-4 py-3 font-editorial-mono text-[var(--ink)]">
+                    {module.probe_id ?? "—"}
                   </td>
-                  <td className="px-3 py-2 text-right text-zinc-100">
-                    {m.findings_landed}
+                  <td className="px-4 py-3 font-editorial-mono text-[var(--muted)]">
+                    {shorten(module.author_address)}
                   </td>
-                  <td className="px-3 py-2 text-right text-zinc-300">
-                    {m.success_count}
+                  <td className="px-4 py-3 text-right text-[var(--ink)]">
+                    {module.findings_landed}
                   </td>
-                  <td className="px-3 py-2 text-right text-zinc-300">
-                    {formatUsdc(m.bounties_earned_usdc)}
+                  <td className="px-4 py-3 text-right text-[var(--muted)]">
+                    {module.success_count}
+                  </td>
+                  <td className="px-4 py-3 text-right text-[var(--muted)]">
+                    {formatUsdc(module.bounties_earned_usdc)}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </Panel>
       )}
     </section>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="editorial-card space-y-2 p-4">
+      <p className="font-editorial-mono text-[0.68rem] uppercase tracking-[0.18em] text-[var(--muted)]">
+        {label}
+      </p>
+      <p className="font-editorial-mono text-lg text-[var(--ink)]">{value}</p>
+    </div>
   );
 }

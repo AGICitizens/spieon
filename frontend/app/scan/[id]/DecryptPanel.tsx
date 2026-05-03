@@ -35,7 +35,7 @@ export default function DecryptPanel({ finding }: { finding: Finding }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="mt-2 text-xs text-zinc-400 underline-offset-2 hover:text-zinc-200 hover:underline"
+        className="mt-1 font-editorial-mono text-[0.72rem] uppercase tracking-[0.18em] text-[var(--muted)] underline decoration-[var(--line-strong)] underline-offset-4 hover:text-[var(--ink)]"
       >
         Decrypt bundle
       </button>
@@ -43,8 +43,8 @@ export default function DecryptPanel({ finding }: { finding: Finding }) {
   }
 
   return (
-    <div className="mt-3 space-y-2 rounded-md border border-zinc-800 bg-zinc-950/40 p-3">
-      <p className="text-xs text-zinc-400">
+    <div className="editorial-card mt-3 space-y-3 p-4">
+      <p className="text-xs leading-5 text-[var(--muted)]">
         Paste the AGE-SECRET-KEY-… from the file you downloaded at scan
         submission. The key never leaves the browser.
       </p>
@@ -53,14 +53,14 @@ export default function DecryptPanel({ finding }: { finding: Finding }) {
         onChange={(e) => setIdentity(e.target.value)}
         placeholder="AGE-SECRET-KEY-…"
         rows={2}
-        className="w-full rounded-md border border-zinc-800 bg-zinc-950 p-2 font-mono text-xs text-zinc-100 outline-none focus:border-zinc-600"
+        className="editorial-textarea font-editorial-mono text-xs"
       />
       <div className="flex gap-2">
         <button
           type="button"
           onClick={load}
           disabled={busy || !identity.trim()}
-          className="rounded-md border border-zinc-700 bg-zinc-900 px-3 py-1 text-xs text-zinc-100 hover:border-zinc-500 disabled:opacity-50"
+          className="editorial-button editorial-button-dark min-h-0 px-4 py-3 disabled:translate-x-0 disabled:translate-y-0 disabled:opacity-60"
         >
           {busy ? "Decrypting…" : "Decrypt"}
         </button>
@@ -71,14 +71,14 @@ export default function DecryptPanel({ finding }: { finding: Finding }) {
             setPlaintext(null);
             setError(null);
           }}
-          className="rounded-md border border-zinc-800 px-3 py-1 text-xs text-zinc-400 hover:text-zinc-100"
+          className="editorial-button editorial-button-light min-h-0 px-4 py-3"
         >
           Close
         </button>
       </div>
-      {error ? <p className="text-xs text-red-400">{error}</p> : null}
+      {error ? <p className="text-xs text-[var(--danger)]">{error}</p> : null}
       {plaintext ? (
-        <pre className="max-h-64 overflow-auto rounded-md border border-zinc-800 bg-black/40 p-2 text-xs text-zinc-200">
+        <pre className="max-h-64 overflow-auto border border-[var(--line-strong)] bg-[var(--panel-strong)] p-3 font-editorial-mono text-xs text-[var(--ink)]">
           {plaintext}
         </pre>
       ) : null}

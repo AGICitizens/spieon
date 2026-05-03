@@ -41,7 +41,7 @@ backend:
 	cd backend && uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 frontend:
-	cd frontend && pnpm dev
+	cd frontend && rm -rf .next && pnpm dev
 
 backend-shell:
 	docker compose exec backend bash

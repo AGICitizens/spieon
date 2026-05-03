@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -58,23 +59,48 @@ async def stats(session: AsyncSession = Depends(get_session)) -> dict[str, objec
             address = resolve_agent_address()
         except Exception:
             address = settings.agent_address or None
-    if address:
-        try:
-            eth_balance = format(await get_balance_eth(address), "f")
-        except Exception:
-            eth_balance = None
-        try:
-            usdc_balance = format(await get_usdc_balance(address), "f")
-        except Exception:
-            usdc_balance = None
 
     ens_name = ens_lookup.configured_name()
     primary_ens: str | None = None
     ens_avatar: str | None = None
-    if address:
-        primary_ens = await ens_lookup.lookup_name(address)
-    if ens_name:
-        ens_avatar = await ens_lookup.resolve_text(ens_name, "avatar")
+
+    eth_task = (
+        asyncio.create_task(get_balance_eth(address))
+        if address
+        else None
+    )
+    usdc_task = (
+        asyncio.create_task(get_usdc_balance(address))
+        if address
+        else None
+    )
+    primary_ens_task = (
+        asyncio.create_task(ens_lookup.lookup_name(address))
+        if address
+        else None
+    )
+    ens_avatar_task = (
+        asyncio.create_task(ens_lookup.resolve_text(ens_name, "avatar"))
+        if ens_name
+        else None
+    )
+
+    pending_tasks = [
+        task
+        for task in (eth_task, usdc_task, primary_ens_task, ens_avatar_task)
+        if task is not None
+    ]
+    if pending_tasks:
+        await asyncio.gather(*pending_tasks, return_exceptions=True)
+
+    if eth_task and not eth_task.exception():
+        eth_balance = format(eth_task.result(), "f")
+    if usdc_task and not usdc_task.exception():
+        usdc_balance = format(usdc_task.result(), "f")
+    if primary_ens_task and not primary_ens_task.exception():
+        primary_ens = primary_ens_task.result()
+    if ens_avatar_task and not ens_avatar_task.exception():
+        ens_avatar = ens_avatar_task.result()
 
     return {
         "address": address,

@@ -1,24 +1,31 @@
 import { api, type Finding, type Scan } from "@/lib/api";
+import { EmptyState, PageHeader, Panel, StatusPill } from "@/components/ui";
 import DecryptPanel from "./DecryptPanel";
 import LiveRefresh from "./LiveRefresh";
 import NarrationStream from "./NarrationStream";
 import PayoutButton from "./PayoutButton";
 
-const STATUS_STYLE: Record<Scan["status"], string> = {
-  pending: "border-zinc-700 bg-zinc-900/60 text-zinc-300",
-  running: "border-amber-700 bg-amber-950/40 text-amber-200",
-  verifying: "border-cyan-700 bg-cyan-950/40 text-cyan-200",
-  attesting: "border-purple-700 bg-purple-950/40 text-purple-200",
-  done: "border-emerald-700 bg-emerald-950/40 text-emerald-200",
-  failed: "border-red-700 bg-red-950/40 text-red-200",
-  canceled: "border-zinc-700 bg-zinc-900/60 text-zinc-400",
+const STATUS_STYLE: Record<
+  Scan["status"],
+  "neutral" | "warning" | "info" | "success" | "danger"
+> = {
+  pending: "neutral",
+  running: "warning",
+  verifying: "info",
+  attesting: "info",
+  done: "success",
+  failed: "danger",
+  canceled: "neutral",
 };
 
-const SEVERITY_STYLE: Record<Finding["severity"], string> = {
-  low: "border-zinc-700 text-zinc-300",
-  medium: "border-amber-700 text-amber-200",
-  high: "border-orange-700 text-orange-200",
-  critical: "border-red-700 text-red-200",
+const SEVERITY_STYLE: Record<
+  Finding["severity"],
+  "neutral" | "warning" | "danger"
+> = {
+  low: "neutral",
+  medium: "warning",
+  high: "warning",
+  critical: "danger",
 };
 
 type Params = { id: string };
@@ -44,87 +51,177 @@ export default async function ScanDetailPage({
 
   return (
     <section className="space-y-8">
-      <header className="space-y-2">
-        <p className="text-xs uppercase tracking-wide text-zinc-500">scan</p>
-        <div className="flex flex-wrap items-baseline gap-3">
-          <h1 className="font-mono text-xl text-zinc-100">{id}</h1>
-          {scan ? (
-            <span
-              className={`rounded border px-2 py-0.5 text-xs uppercase tracking-wide ${STATUS_STYLE[scan.status]}`}
-            >
-              {scan.status}
-            </span>
-          ) : null}
-        </div>
-        {scan ? (
-          <p className="text-xs text-zinc-500">
-            <span className="text-zinc-400">{scan.target_url}</span>{" "}
-            · budget {scan.budget_usdc} · spent {scan.spent_usdc}
-            {scan.error ? <> · error <span className="text-red-400">{scan.error}</span></> : null}
-          </p>
-        ) : null}
-      </header>
+      <PageHeader
+        eyebrow="Scan Detail"
+        title={
+          <>
+            Watch one
+            <br />
+            target move
+            <br />
+            from recon
+            <br />
+            to attestation.
+          </>
+        }
+        description={
+          <>
+            The detail view shows live narration, public findings, and payout
+            controls without breaking the evidence chain.
+          </>
+        }
+        aside={
+          scan ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-editorial-mono text-[0.68rem] font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
+                  Scan status
+                </p>
+                <StatusPill tone={STATUS_STYLE[scan.status]}>{scan.status}</StatusPill>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Stat label="budget" value={scan.budget_usdc} />
+                <Stat label="spent" value={scan.spent_usdc} />
+                <Stat label="findings" value={String(findings.length)} />
+                <Stat label="adapt" value={String(scan.adapt_iterations)} />
+              </div>
+              <p className="font-editorial-mono text-xs leading-5 text-[var(--muted)]">
+                {scan.target_url}
+              </p>
+            </div>
+          ) : (
+            <div className="text-sm leading-6 text-[var(--muted)]">
+              Scan metadata appears here once the backend returns the record.
+            </div>
+          )
+        }
+      />
 
       {scan && (scan.status === "running" || scan.status === "pending") ? (
         <LiveRefresh intervalMs={3000} />
       ) : null}
 
+      {scanError ? (
+        <EmptyState title="Backend unreachable" description={scanError} />
+      ) : null}
+
+      {scan ? (
+        <Panel className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="font-editorial-mono text-[0.68rem] font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
+              Target
+            </p>
+            {scan.error ? <StatusPill tone="danger">{scan.error}</StatusPill> : null}
+          </div>
+          <p className="font-editorial-mono text-sm text-[var(--ink)]">{scan.id}</p>
+          <p className="text-sm leading-6 text-[var(--muted)]">{scan.target_url}</p>
+        </Panel>
+      ) : null}
+
       <NarrationStream scanId={id} scanStatus={scan?.status ?? null} />
 
-      <section className="space-y-3">
-        <h2 className="text-sm uppercase tracking-wide text-zinc-500">
-          Findings ({findings.length})
-        </h2>
-        {scanError ? (
-          <p className="text-sm text-red-400">backend unreachable: {scanError}</p>
-        ) : findings.length === 0 ? (
-          <p className="text-sm text-zinc-500">
-            None yet. Findings appear here as the agent verifies and attests them.
-          </p>
+      <section className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="font-editorial-mono text-[0.68rem] font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
+              Findings
+            </p>
+            <h2 className="mt-2 font-editorial-sans text-2xl font-semibold uppercase">
+              {findings.length} public records
+            </h2>
+          </div>
+          <StatusPill tone="neutral">{findings.length} items</StatusPill>
+        </div>
+
+        {findings.length === 0 ? (
+          <EmptyState
+            title="No findings yet"
+            description="Findings will appear here as the agent verifies and attests them."
+          />
         ) : (
-          <ul className="space-y-2">
-            {findings.map((f) => (
-              <li
-                key={f.id}
-                className={`rounded-md border bg-zinc-950/40 p-3 text-sm ${SEVERITY_STYLE[f.severity]}`}
-              >
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="font-medium text-zinc-100">{f.title}</span>
-                  <span className="text-xs uppercase tracking-wide opacity-80">
-                    {f.severity}
-                  </span>
-                </div>
-                <p className="mt-1 text-sm text-zinc-300">{f.summary}</p>
-                <p className="mt-2 text-xs text-zinc-500">
-                  {f.owasp_id ? (
-                    <>
-                      owasp <span className="text-zinc-300">{f.owasp_id}</span>{" "}
-                    </>
-                  ) : null}
-                  {f.atlas_technique_id ? (
-                    <>
-                      · atlas{" "}
-                      <span className="text-zinc-300">
-                        {f.atlas_technique_id}
-                      </span>{" "}
-                    </>
-                  ) : null}
-                  {f.eas_attestation_uid ? (
-                    <>
-                      · attestation{" "}
-                      <span className="font-mono text-zinc-300">
-                        {f.eas_attestation_uid.slice(0, 10)}…
-                      </span>
-                    </>
-                  ) : null}
-                </p>
-                <PayoutButton finding={f} />
-                <DecryptPanel finding={f} />
+          <ul className="space-y-4">
+            {findings.map((finding) => (
+              <li key={finding.id}>
+                <Panel className="space-y-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="space-y-2">
+                      <p className="font-editorial-mono text-[0.68rem] uppercase tracking-[0.18em] text-[var(--muted)]">
+                        finding / {finding.id.slice(0, 8)}
+                      </p>
+                      <h3 className="font-editorial-sans text-2xl font-semibold uppercase leading-tight">
+                        {finding.title}
+                      </h3>
+                    </div>
+                    <StatusPill tone={SEVERITY_STYLE[finding.severity]}>
+                      {finding.severity}
+                    </StatusPill>
+                  </div>
+
+                  <p className="text-sm leading-6 text-[var(--muted)]">
+                    {finding.summary}
+                  </p>
+
+                  <dl className="grid gap-x-6 gap-y-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
+                    {finding.owasp_id ? <Field label="owasp" value={finding.owasp_id} /> : null}
+                    {finding.atlas_technique_id ? (
+                      <Field label="atlas" value={finding.atlas_technique_id} />
+                    ) : null}
+                    {finding.eas_attestation_uid ? (
+                      <Field
+                        label="attestation"
+                        value={`${finding.eas_attestation_uid.slice(0, 10)}…`}
+                        mono
+                      />
+                    ) : null}
+                    {finding.ciphertext_sha256 ? (
+                      <Field
+                        label="ciphertext"
+                        value={`${finding.ciphertext_sha256.slice(0, 10)}…`}
+                        mono
+                      />
+                    ) : null}
+                  </dl>
+
+                  <PayoutButton finding={finding} />
+                  <DecryptPanel finding={finding} />
+                </Panel>
               </li>
             ))}
           </ul>
         )}
       </section>
     </section>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="editorial-card space-y-2 p-4">
+      <p className="font-editorial-mono text-[0.68rem] uppercase tracking-[0.18em] text-[var(--muted)]">
+        {label}
+      </p>
+      <p className="font-editorial-mono text-lg text-[var(--ink)]">{value}</p>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div>
+      <dt className="font-editorial-mono uppercase tracking-[0.18em] text-[var(--muted)]">
+        {label}
+      </dt>
+      <dd className={`mt-1 text-sm text-[var(--ink)] ${mono ? "font-editorial-mono" : ""}`}>
+        {value}
+      </dd>
+    </div>
   );
 }

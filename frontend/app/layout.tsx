@@ -12,6 +12,11 @@ export const metadata: Metadata = {
   title: "Spieon",
   description:
     "Autonomous security agent that scans MCP servers and x402 endpoints, attests findings, and rewards probe authors.",
+  icons: {
+    icon: "/spieon.svg",
+    shortcut: "/spieon.svg",
+    apple: "/spieon.svg",
+  },
 };
 
 const editorialSans = Space_Grotesk({
@@ -35,6 +40,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body
+        suppressHydrationWarning
         className={`${editorialSans.variable} ${editorialMono.variable} ${editorialSerif.variable} min-h-screen antialiased`}
       >
         <div className="relative z-10 mx-auto min-h-screen max-w-[1440px] border-x border-[var(--line-strong)] bg-[var(--paper)]">

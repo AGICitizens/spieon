@@ -6,6 +6,7 @@ from app.api import (
     erc8004,
     findings,
     health,
+    keeperhub,
     memory,
     modules,
     payouts,
@@ -35,6 +36,7 @@ def create_app() -> FastAPI:
     app.include_router(memory.router)
     app.include_router(agent.router)
     app.include_router(erc8004.router)
+    app.include_router(keeperhub.router)
     app.include_router(ws.router)
     return app
 

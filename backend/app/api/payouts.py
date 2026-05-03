@@ -18,7 +18,11 @@ from app.chain import (
 )
 from app.config import get_settings
 from app.db import get_session
+from app.keeperhub import KeeperHubError, get_keeperhub_client
+from app.keeperhub.client import encode_payout_payload
 from app.models.finding import Finding, Severity
+
+log = __import__("logging").getLogger(__name__)
 
 router = APIRouter(prefix="/findings", tags=["payouts"])
 
@@ -43,6 +47,9 @@ class PayoutResult(BaseModel):
     tx_hash: str
     paid_at: datetime
     onchain: bool
+    keeperhub_execution_id: str | None = None
+    keeperhub_status: str | None = None
+    keeperhub_paid: bool = False
 
 
 def _stub_tx_hash(finding_id: uuid.UUID, recipient: str, amount: Decimal) -> str:
@@ -138,6 +145,29 @@ async def pay_finding(
     session.add(row)
     await session.commit()
 
+    kh_execution_id: str | None = None
+    kh_status: str | None = None
+    kh_paid = False
+    settings = get_settings()
+    workflow_id = settings.keeperhub_payout_workflow_id
+    if workflow_id:
+        try:
+            client = get_keeperhub_client()
+            payload = encode_payout_payload(
+                finding_id=str(finding_id),
+                recipient=body.recipient,
+                amount_usdc=str(body.amount_usdc),
+                severity=severity.value,
+                attestation_uid=row.eas_attestation_uid,
+                tx_hash=tx_hash,
+            )
+            result = await client.execute_workflow(workflow_id, payload)
+            kh_execution_id = result.execution_id
+            kh_status = result.status
+            kh_paid = result.paid
+        except KeeperHubError as exc:
+            log.warning("keeperhub workflow execution failed: %s", exc)
+
     return PayoutResult(
         finding_id=finding_id,
         recipient=body.recipient,
@@ -145,4 +175,7 @@ async def pay_finding(
         tx_hash=tx_hash,
         paid_at=paid_at,
         onchain=onchain,
+        keeperhub_execution_id=kh_execution_id,
+        keeperhub_status=kh_status,
+        keeperhub_paid=kh_paid,
     )

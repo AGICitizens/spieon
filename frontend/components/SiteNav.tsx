@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
@@ -24,10 +25,16 @@ export default function SiteNav() {
       <nav className="grid min-h-16 grid-cols-[1fr_auto] items-center gap-4 px-5 py-4 sm:grid-cols-[1fr_auto_1fr] lg:px-8">
         <Link href="/" className="flex items-center gap-3">
           <span
-            aria-hidden
-            className="relative h-5 w-5 shrink-0 rounded-full border-[5px] border-[var(--ink)]"
+            aria-hidden="true"
+            className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden"
           >
-            <span className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--ink)]" />
+            <Image
+              src="/spieon.svg"
+              alt=""
+              width={32}
+              height={32}
+              className="h-8 w-8 scale-[1.18]"
+            />
           </span>
           <span className="font-editorial-sans text-base font-bold uppercase tracking-[0.08em]">
             Spieon

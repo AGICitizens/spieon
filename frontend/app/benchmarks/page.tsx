@@ -1,3 +1,5 @@
+import { PageHeader, Panel, StatusPill } from "@/components/ui";
+
 type Bench = {
   id: string;
   name: string;
@@ -12,80 +14,116 @@ const BENCHES: Bench[] = [
     id: "dvmcp",
     name: "DVMCP",
     description:
-      "Damn Vulnerable MCP Server — open-source benchmark of MCP-specific exploits.",
+      "Damn Vulnerable MCP Server, an open-source benchmark focused on MCP-specific exploits.",
     status: "pending",
     notes:
-      "Native probes mcp-tool-description-injection and mcp-schema-poisoning target this; numbers will land after a benchmark VPS run.",
+      "Native probes mcp-tool-description-injection and mcp-schema-poisoning will target this first.",
   },
   {
     id: "dvla",
     name: "DVLA",
     description:
-      "Damn Vulnerable LLM Application — prompt-injection-shaped CTF surface.",
+      "Damn Vulnerable LLM Application, used here as a prompt-injection-shaped benchmark surface.",
     status: "pending",
-    notes:
-      "Reuses the prompt-injection probe surface; needs a benchmark host.",
+    notes: "Reuses the prompt-injection probe family and needs a benchmark host.",
   },
   {
     id: "cybench",
-    name: "Cybench (subset)",
+    name: "Cybench subset",
     description:
-      "10–15 task subset of Cybench focused on the categories Spieon's probes can address.",
+      "A 10 to 15 task slice of Cybench aligned to the categories Spieon can meaningfully address.",
     status: "pending",
-    notes: "Subset list is locked in PRD §11.",
+    notes: "Subset list is locked in PRD section 11.",
   },
   {
     id: "custom",
-    name: "Spieon-x402-target",
+    name: "Spieon x402 target",
     description:
       "Custom vulnerable x402 endpoint that intentionally accepts replayed payment headers.",
     status: "pending",
-    notes:
-      "Smallest target — will be the first to ship and the cleanest demo number.",
+    notes: "This is expected to be the first benchmark to ship for demos.",
   },
 ];
 
 export default function BenchmarksPage() {
   return (
-    <section className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold">Benchmarks</h1>
-        <p className="mt-1 text-sm text-zinc-400">
-          Benchmarks are run on a separate VPS, not the agent's host. Spieon's
-          own host is intentionally not exposed to benchmark traffic.
-        </p>
-      </header>
+    <section className="space-y-8">
+      <PageHeader
+        eyebrow="Benchmarks"
+        title={
+          <>
+            Prove the
+            <br />
+            agent on
+            <br />
+            dedicated
+            <br />
+            targets.
+          </>
+        }
+        description={
+          <>
+            Benchmark traffic runs on separate infrastructure, not the agent&apos;s
+            own host, so measurement stays realistic without exposing the
+            control plane itself.
+          </>
+        }
+        aside={
+          <div className="grid grid-cols-2 gap-3">
+            <Stat label="tracks" value={String(BENCHES.length)} />
+            <Stat
+              label="deployed"
+              value={String(BENCHES.filter((bench) => bench.status === "deployed").length)}
+            />
+          </div>
+        }
+      />
 
-      <ul className="space-y-3">
-        {BENCHES.map((b) => (
-          <li
-            key={b.id}
-            className="rounded-md border border-zinc-800 bg-zinc-950/40 p-4"
-          >
-            <div className="flex flex-wrap items-baseline justify-between gap-3">
-              <h2 className="font-medium text-zinc-100">{b.name}</h2>
-              <span
-                className={`rounded border px-2 py-0.5 text-xs uppercase tracking-wide ${
-                  b.status === "deployed"
-                    ? "border-emerald-700 bg-emerald-950/40 text-emerald-200"
-                    : "border-zinc-700 bg-zinc-900 text-zinc-400"
-                }`}
-              >
-                {b.status}
-              </span>
-            </div>
-            <p className="mt-2 text-sm text-zinc-300">{b.description}</p>
-            {b.score ? (
-              <p className="mt-3 font-mono text-sm text-zinc-100">
-                {b.score.detected} / {b.score.total} detections
+      <ul className="grid gap-4 lg:grid-cols-2">
+        {BENCHES.map((bench) => (
+          <li key={bench.id}>
+            <Panel className="h-full">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-2">
+                  <p className="font-editorial-mono text-[0.68rem] uppercase tracking-[0.18em] text-[var(--muted)]">
+                    benchmark / {bench.id}
+                  </p>
+                  <h2 className="font-editorial-sans text-2xl font-semibold uppercase leading-tight">
+                    {bench.name}
+                  </h2>
+                </div>
+                <StatusPill tone={bench.status === "deployed" ? "success" : "neutral"}>
+                  {bench.status}
+                </StatusPill>
+              </div>
+              <p className="mt-4 text-sm leading-6 text-[var(--muted)]">
+                {bench.description}
               </p>
-            ) : null}
-            {b.notes ? (
-              <p className="mt-2 text-xs text-zinc-500">{b.notes}</p>
-            ) : null}
+              {bench.score ? (
+                <p className="mt-4 font-editorial-mono text-sm text-[var(--ink)]">
+                  {bench.score.detected} / {bench.score.total} detections
+                </p>
+              ) : null}
+              {bench.notes ? (
+                <p className="mt-4 text-xs leading-5 text-[var(--muted)]">
+                  {bench.notes}
+                </p>
+              ) : null}
+            </Panel>
           </li>
         ))}
       </ul>
     </section>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="editorial-card space-y-2 p-4">
+      <p className="font-editorial-mono text-[0.68rem] uppercase tracking-[0.18em] text-[var(--muted)]">
+        {label}
+      </p>
+      <p className="font-editorial-mono text-lg text-[var(--ink)]">{value}</p>
+    </div>
   );
 }

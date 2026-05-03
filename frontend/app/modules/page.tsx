@@ -1,4 +1,5 @@
 import { api, type ModuleEntry } from "@/lib/api";
+import { EmptyState, PageHeader, Panel } from "@/components/ui";
 
 function shorten(hash: string | null) {
   if (!hash) return "—";
@@ -20,65 +21,103 @@ export default async function ModulesPage() {
     error = (err as Error).message;
   }
 
+  const totalBounties = modules.reduce((sum, module) => {
+    const num = Number(module.bounties_earned_usdc);
+    return Number.isNaN(num) ? sum : sum + num;
+  }, 0);
+
   return (
-    <section className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold">Modules</h1>
-        <p className="mt-1 text-sm text-zinc-400">
-          Probe modules and the bounties they have earned. On-chain registry
-          counters synced via the agent.
-        </p>
-      </header>
+    <section className="space-y-8">
+      <PageHeader
+        eyebrow="Probe Modules"
+        title={
+          <>
+            The registry of
+            <br />
+            probes and the
+            <br />
+            rewards they
+            <br />
+            earn.
+          </>
+        }
+        description={
+          <>
+            Track module hashes, severity caps, findings landed, and the bounty
+            totals that justify keeping a probe in rotation.
+          </>
+        }
+        aside={
+          <div className="grid grid-cols-2 gap-3">
+            <Stat label="modules" value={String(modules.length)} />
+            <Stat label="bounties" value={formatUsdc(String(totalBounties))} />
+          </div>
+        }
+      />
 
       {error ? (
-        <p className="text-sm text-red-400">backend unreachable: {error}</p>
+        <EmptyState title="Backend unreachable" description={error} />
       ) : modules.length === 0 ? (
-        <p className="text-sm text-zinc-500">No modules registered yet.</p>
+        <EmptyState
+          title="No modules registered yet"
+          description="Once modules are synced onchain, this registry will show performance and earnings."
+        />
       ) : (
-        <div className="overflow-x-auto rounded-md border border-zinc-800">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-zinc-950/60 text-xs uppercase tracking-wide text-zinc-500">
+        <Panel className="overflow-x-auto p-0">
+          <table className="w-full min-w-[780px] text-left text-sm">
+            <thead className="border-b border-[var(--line-strong)] bg-[var(--panel-strong)] font-editorial-mono text-[0.68rem] uppercase tracking-[0.18em] text-[var(--muted)]">
               <tr>
-                <th className="px-3 py-2">probe</th>
-                <th className="px-3 py-2">module hash</th>
-                <th className="px-3 py-2">severity cap</th>
-                <th className="px-3 py-2 text-right">findings</th>
-                <th className="px-3 py-2 text-right">bounties</th>
-                <th className="px-3 py-2">owasp</th>
-                <th className="px-3 py-2">atlas</th>
+                <th className="px-4 py-3">probe</th>
+                <th className="px-4 py-3">module hash</th>
+                <th className="px-4 py-3">severity cap</th>
+                <th className="px-4 py-3 text-right">findings</th>
+                <th className="px-4 py-3 text-right">bounties</th>
+                <th className="px-4 py-3">owasp</th>
+                <th className="px-4 py-3">atlas</th>
               </tr>
             </thead>
             <tbody>
-              {modules.map((m) => (
+              {modules.map((module) => (
                 <tr
-                  key={m.module_hash}
-                  className="border-t border-zinc-900 hover:bg-zinc-950/40"
+                  key={module.module_hash}
+                  className="border-t border-[var(--line)] bg-[var(--panel)] transition-colors hover:bg-[var(--panel-strong)]"
                 >
-                  <td className="px-3 py-2 font-mono text-zinc-200">
-                    {m.probe_id ?? <span className="text-zinc-500">unknown</span>}
+                  <td className="px-4 py-3 font-editorial-mono text-[var(--ink)]">
+                    {module.probe_id ?? <span className="text-[var(--muted)]">unknown</span>}
                   </td>
-                  <td className="px-3 py-2 font-mono text-zinc-400">
-                    {shorten(m.module_hash)}
+                  <td className="px-4 py-3 font-editorial-mono text-[var(--muted)]">
+                    {shorten(module.module_hash)}
                   </td>
-                  <td className="px-3 py-2 capitalize text-zinc-300">
-                    {m.severity_cap}
+                  <td className="px-4 py-3 capitalize text-[var(--ink)]">
+                    {module.severity_cap}
                   </td>
-                  <td className="px-3 py-2 text-right text-zinc-100">
-                    {m.findings_landed}
+                  <td className="px-4 py-3 text-right text-[var(--ink)]">
+                    {module.findings_landed}
                   </td>
-                  <td className="px-3 py-2 text-right text-zinc-300">
-                    {formatUsdc(m.bounties_earned_usdc)}
+                  <td className="px-4 py-3 text-right text-[var(--muted)]">
+                    {formatUsdc(module.bounties_earned_usdc)}
                   </td>
-                  <td className="px-3 py-2 text-zinc-400">{m.owasp_id ?? "—"}</td>
-                  <td className="px-3 py-2 text-zinc-400">
-                    {m.atlas_technique_id ?? "—"}
+                  <td className="px-4 py-3 text-[var(--muted)]">{module.owasp_id ?? "—"}</td>
+                  <td className="px-4 py-3 text-[var(--muted)]">
+                    {module.atlas_technique_id ?? "—"}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </Panel>
       )}
     </section>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="editorial-card space-y-2 p-4">
+      <p className="font-editorial-mono text-[0.68rem] uppercase tracking-[0.18em] text-[var(--muted)]">
+        {label}
+      </p>
+      <p className="font-editorial-mono text-lg text-[var(--ink)]">{value}</p>
+    </div>
   );
 }

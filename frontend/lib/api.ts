@@ -1,5 +1,6 @@
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://localhost:8000";
+const REQUEST_TIMEOUT_MS = Number(process.env.NEXT_PUBLIC_API_TIMEOUT_MS ?? 4000);
 
 export type Health = {
   status: "ok" | "degraded";
@@ -35,22 +36,44 @@ export type Scan = {
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      "content-type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-    cache: "no-store",
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`${res.status} ${res.statusText}${text ? `: ${text}` : ""}`);
+  const controller = new AbortController();
+  const abortSignal = init?.signal;
+  let timedOut = false;
+  const cancelOnAbort = () => controller.abort();
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, REQUEST_TIMEOUT_MS);
+
+  abortSignal?.addEventListener("abort", cancelOnAbort, { once: true });
+
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers: {
+        "content-type": "application/json",
+        ...(init?.headers ?? {}),
+      },
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`${res.status} ${res.statusText}${text ? `: ${text}` : ""}`);
+    }
+    if (res.status === 204) {
+      return undefined as T;
+    }
+    return (await res.json()) as T;
+  } catch (error) {
+    if (timedOut) {
+      throw new Error(`Request timed out after ${REQUEST_TIMEOUT_MS}ms: ${path}`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+    abortSignal?.removeEventListener("abort", cancelOnAbort);
   }
-  if (res.status === 204) {
-    return undefined as T;
-  }
-  return (await res.json()) as T;
 }
 
 export type AgentStats = {
@@ -98,6 +121,26 @@ export type PayoutResult = {
   tx_hash: string;
   paid_at: string;
   onchain: boolean;
+  keeperhub_execution_id: string | null;
+  keeperhub_status: string | null;
+  keeperhub_paid: boolean;
+};
+
+export type KeeperHubStatus = {
+  configured: boolean;
+  api_key_present: boolean;
+  workflow_id: string | null;
+  base_url: string;
+};
+
+export type KeeperHubRunsResponse = {
+  executions?: Array<{
+    id?: string;
+    status?: string;
+    createdAt?: string;
+    [k: string]: unknown;
+  }>;
+  [k: string]: unknown;
 };
 
 export type Heuristic = {
@@ -174,4 +217,9 @@ export const api = {
     }),
   listHeuristics: (limit?: number) =>
     request<Heuristic[]>(`/memory/heuristics${limit ? `?limit=${limit}` : ""}`),
+  keeperhubStatus: () => request<KeeperHubStatus>("/keeperhub/status"),
+  keeperhubRuns: (limit?: number) =>
+    request<KeeperHubRunsResponse>(
+      `/keeperhub/runs${limit ? `?limit=${limit}` : ""}`,
+    ),
 };

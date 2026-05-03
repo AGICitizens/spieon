@@ -23,13 +23,13 @@ export default function PayoutButton({ finding }: { finding: Finding }) {
 
   if (finding.bounty_tx_hash) {
     return (
-      <p className="mt-2 text-xs text-zinc-400">
-        Paid <span className="font-mono text-zinc-200">{amount} USDC</span> →{" "}
-        <span className="font-mono text-zinc-300">
+      <p className="mt-2 text-xs leading-5 text-[var(--muted)]">
+        Paid <span className="font-editorial-mono text-[var(--ink)]">{amount} USDC</span> →{" "}
+        <span className="font-editorial-mono text-[var(--ink)]">
           {(finding.bounty_recipient ?? "").slice(0, 10)}…
         </span>{" "}
         · tx{" "}
-        <span className="font-mono text-zinc-300">
+        <span className="font-editorial-mono text-[var(--ink)]">
           {finding.bounty_tx_hash.slice(0, 10)}…
         </span>
       </p>
@@ -38,7 +38,7 @@ export default function PayoutButton({ finding }: { finding: Finding }) {
 
   if (!finding.eas_attestation_uid) {
     return (
-      <p className="mt-2 text-xs text-zinc-500">
+      <p className="mt-2 text-xs leading-5 text-[var(--muted)]">
         Not attested yet — waiting on the agent.
       </p>
     );
@@ -49,7 +49,7 @@ export default function PayoutButton({ finding }: { finding: Finding }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="mt-3 rounded-md border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-200 hover:border-zinc-500"
+        className="editorial-button editorial-button-dark mt-3 min-h-0 px-4 py-3"
       >
         Pay bounty
       </button>
@@ -77,9 +77,9 @@ export default function PayoutButton({ finding }: { finding: Finding }) {
   return (
     <form
       onSubmit={submit}
-      className="mt-3 space-y-2 rounded-md border border-zinc-800 bg-zinc-950/40 p-3"
+      className="editorial-card mt-3 space-y-3 p-4"
     >
-      <label className="block text-xs text-zinc-400">
+      <label className="block text-xs text-[var(--muted)]">
         Recipient address
         <input
           type="text"
@@ -87,32 +87,32 @@ export default function PayoutButton({ finding }: { finding: Finding }) {
           value={recipient}
           onChange={(e) => setRecipient(e.target.value)}
           placeholder="0x…"
-          className="mt-1 w-full rounded-md border border-zinc-800 bg-zinc-950 px-2 py-1 font-mono text-sm text-zinc-100 outline-none focus:border-zinc-600"
+          className="editorial-input mt-2 font-editorial-mono text-sm"
         />
       </label>
-      <label className="block text-xs text-zinc-400">
+      <label className="block text-xs text-[var(--muted)]">
         Amount (USDC)
         <input
           type="text"
           required
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          className="mt-1 w-full rounded-md border border-zinc-800 bg-zinc-950 px-2 py-1 text-sm text-zinc-100 outline-none focus:border-zinc-600"
+          className="editorial-input mt-2 text-sm"
         />
       </label>
-      {error ? <p className="text-xs text-red-400">{error}</p> : null}
+      {error ? <p className="text-xs text-[var(--danger)]">{error}</p> : null}
       <div className="flex gap-2">
         <button
           type="submit"
           disabled={submitting}
-          className="rounded-md border border-zinc-700 bg-zinc-900 px-3 py-1 text-xs text-zinc-100 hover:border-zinc-500 disabled:opacity-50"
+          className="editorial-button editorial-button-dark min-h-0 px-4 py-3 disabled:translate-x-0 disabled:translate-y-0 disabled:opacity-60"
         >
           {submitting ? "Paying…" : "Confirm payout"}
         </button>
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="rounded-md border border-zinc-800 px-3 py-1 text-xs text-zinc-400 hover:text-zinc-100"
+          className="editorial-button editorial-button-light min-h-0 px-4 py-3"
         >
           Cancel
         </button>
