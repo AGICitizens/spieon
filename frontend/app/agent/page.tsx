@@ -41,6 +41,21 @@ export default async function AgentPage() {
       {stats ? (
         <section className="space-y-4">
           <div className="rounded-md border border-zinc-800 bg-zinc-950/40 p-4">
+            {stats.ens_name || stats.ens_primary_name ? (
+              <div className="mb-3 flex items-baseline justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-zinc-500">
+                    ens identity
+                  </p>
+                  <p className="mt-1 text-base font-semibold text-zinc-100">
+                    {stats.ens_primary_name ?? stats.ens_name}
+                  </p>
+                </div>
+                <p className="text-xs text-zinc-500">
+                  resolved live · chain {stats.ens_chain_id ?? "—"}
+                </p>
+              </div>
+            ) : null}
             <p className="text-xs uppercase tracking-wide text-zinc-500">
               wallet
             </p>

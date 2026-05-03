@@ -8,6 +8,7 @@ from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
+from app.chain import ens as ens_lookup
 from app.chain.client import (
     agent_address as resolve_agent_address,
 )
@@ -67,8 +68,20 @@ async def stats(session: AsyncSession = Depends(get_session)) -> dict[str, objec
         except Exception:
             usdc_balance = None
 
+    ens_name = ens_lookup.configured_name()
+    primary_ens: str | None = None
+    ens_avatar: str | None = None
+    if address:
+        primary_ens = await ens_lookup.lookup_name(address)
+    if ens_name:
+        ens_avatar = await ens_lookup.resolve_text(ens_name, "avatar")
+
     return {
         "address": address,
+        "ens_name": ens_name,
+        "ens_primary_name": primary_ens,
+        "ens_avatar": ens_avatar,
+        "ens_chain_id": settings.ens_chain_id if ens_name else None,
         "scans": int(scan_count),
         "scans_completed": int(completed_count),
         "findings": int(finding_count),

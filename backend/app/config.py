@@ -22,11 +22,18 @@ class Settings(BaseSettings):
     database_url: str
     database_url_sync: str
 
-    # LLM
-    anthropic_api_key: str = ""
-    openai_api_key: str = ""
-    anthropic_model: str = "claude-opus-4-7"
-    judge_model: str = "claude-haiku-4-5-20251001"
+    # LLM — OpenRouter (OpenAI-compatible)
+    openrouter_api_key: str = ""
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_model: str = "anthropic/claude-3.5-sonnet"
+    judge_model: str = "anthropic/claude-3.5-haiku"
+
+    # LLM — 0G Compute Network (OpenAI-compatible router). When `zerog_compute_api_key`
+    # is set, the agent prefers 0G Compute over OpenRouter for planner/reflector/judge.
+    zerog_compute_api_key: str = ""
+    zerog_compute_base_url: str = "https://router-api.0g.ai/v1"
+    zerog_compute_model: str = ""
+    zerog_compute_judge_model: str = ""
 
     # Langfuse
     langfuse_host: str = "http://langfuse:3000"
@@ -57,8 +64,24 @@ class Settings(BaseSettings):
     x402_facilitator_url: str = "https://x402.org/facilitator"
     x402_usdc_address: str = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
 
+    # KeeperHub — paid-per-execution workflow runner. The agent uses x402 to pay each
+    # execute call (KeeperHub is x402-native). API key is used for management (create
+    # workflow, list executions). When `keeperhub_payout_workflow_id` is unset, the
+    # backend skips KH and only does the direct on-chain payout.
+    keeperhub_api_key: str = ""
+    keeperhub_base_url: str = "https://app.keeperhub.com/api"
+    keeperhub_payout_workflow_id: str = ""
+
     # Operator (dev)
     operator_test_address: str = ""
+
+    # ENS — agent identity. `ens_name` is the name the agent owns (e.g. spieon-agent.eth
+    # on Sepolia). `ens_rpc_url` is the chain ENS resolves on; default Sepolia public RPC.
+    # When `ens_name` is empty, the descriptor and stats endpoints omit ENS fields.
+    ens_name: str = ""
+    ens_rpc_url: str = "https://ethereum-sepolia-rpc.publicnode.com"
+    ens_chain_id: int = 11155111
+    ens_text_keys: str = "url,description,com.github,org.erc8004.descriptor,org.spieon.scan-endpoint,avatar"
 
     # Storage
     zerog_endpoint: str = ""

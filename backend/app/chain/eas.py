@@ -182,13 +182,33 @@ async def _attest_onchain(payload: FindingAttestationPayload) -> str:
     tx_hash = await w3.eth.send_raw_transaction(raw)
     receipt = await w3.eth.wait_for_transaction_receipt(tx_hash)
 
-    for log in receipt.get("logs", []):
-        topics = log.get("topics") or []
-        if len(topics) >= 4:
-            uid = topics[-1]
-            return uid.hex() if hasattr(uid, "hex") else str(uid)
+    eas_address = w3.to_checksum_address(settings.eas_contract_address).lower()
+    attested_topic0 = w3.keccak(text="Attested(address,address,bytes32,bytes32)").hex()
+    if not attested_topic0.startswith("0x"):
+        attested_topic0 = "0x" + attested_topic0
 
-    return tx_hash.hex() if hasattr(tx_hash, "hex") else str(tx_hash)
+    for log in receipt.get("logs", []):
+        log_addr = log.get("address")
+        if log_addr is None or log_addr.lower() != eas_address:
+            continue
+        topics = log.get("topics") or []
+        if not topics:
+            continue
+        t0 = topics[0]
+        t0_hex = t0.hex() if hasattr(t0, "hex") else str(t0)
+        if not t0_hex.startswith("0x"):
+            t0_hex = "0x" + t0_hex
+        if t0_hex.lower() != attested_topic0.lower():
+            continue
+        data = log.get("data")
+        data_hex = data.hex() if hasattr(data, "hex") else str(data)
+        if data_hex.startswith("0x"):
+            data_hex = data_hex[2:]
+        if len(data_hex) >= 64:
+            return "0x" + data_hex[:64]
+
+    raw_hash = tx_hash.hex() if hasattr(tx_hash, "hex") else str(tx_hash)
+    return raw_hash if raw_hash.startswith("0x") else "0x" + raw_hash
 
 
 async def attest_finding(payload: FindingAttestationPayload) -> str:

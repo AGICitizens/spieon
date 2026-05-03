@@ -55,6 +55,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export type AgentStats = {
   address: string | null;
+  ens_name: string | null;
+  ens_primary_name: string | null;
+  ens_avatar: string | null;
+  ens_chain_id: number | null;
   scans: number;
   scans_completed: number;
   findings: number;

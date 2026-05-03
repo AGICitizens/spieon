@@ -1,23 +1,205 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0b0b0d;
-  --foreground: #f4f4f5;
-  --muted: #a1a1aa;
-  --accent: #38bdf8;
+  --paper: #e6e1d8;
+  --panel: #f8f4ec;
+  --panel-strong: #fffdf9;
+  --ink: #111111;
+  --muted: #5c584f;
+  --line: rgba(17, 17, 17, 0.14);
+  --line-strong: rgba(17, 17, 17, 0.28);
+  --accent: #1d4ed8;
+  --success: #1f7a45;
+  --warning: #a16207;
+  --danger: #b42318;
+  --info: #155eef;
+  --shadow: 6px 6px 0 rgba(17, 17, 17, 0.07);
 }
 
-html,
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--paper);
+  scroll-behavior: smooth;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.4), transparent 30%),
+    var(--paper);
+  color: var(--ink);
+  font-family: var(--font-space-grotesk), "Space Grotesk", sans-serif;
+  margin: 0;
+}
+
+body::before {
+  background-image:
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  content: "";
+  inset: 0;
+  opacity: 0.032;
+  pointer-events: none;
+  position: fixed;
+  z-index: 0;
 }
 
 a {
-  color: var(--accent);
+  color: inherit;
+  text-decoration: none;
 }
 
-a:hover {
-  text-decoration: underline;
+button,
+a[href] {
+  cursor: pointer;
+}
+
+::selection {
+  background: var(--ink);
+  color: var(--panel);
+}
+
+.font-editorial-sans {
+  font-family: var(--font-space-grotesk), "Space Grotesk", sans-serif;
+}
+
+.font-editorial-mono {
+  font-family: var(--font-jetbrains-mono), "JetBrains Mono", monospace;
+}
+
+.font-editorial-serif {
+  font-family: var(--font-instrument-serif), "Instrument Serif", serif;
+}
+
+.editorial-button {
+  align-items: center;
+  border: 1px solid var(--ink);
+  display: inline-flex;
+  font-family: var(--font-jetbrains-mono), "JetBrains Mono", monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  gap: 0.75rem;
+  justify-content: center;
+  letter-spacing: 0.14em;
+  min-height: 3rem;
+  padding: 0.95rem 1.35rem;
+  position: relative;
+  text-transform: uppercase;
+  transition:
+    background-color 0.16s ease,
+    box-shadow 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease;
+}
+
+.editorial-button::after {
+  background: currentColor;
+  bottom: 0.65rem;
+  content: "";
+  height: 1px;
+  left: 1rem;
+  opacity: 0.2;
+  position: absolute;
+  right: 1rem;
+  transform: scaleX(0.45);
+  transform-origin: left;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.editorial-button:hover,
+.editorial-button:focus-visible {
+  transform: translate(-2px, -2px);
+}
+
+.editorial-button:hover::after,
+.editorial-button:focus-visible::after {
+  opacity: 0.48;
+  transform: scaleX(1);
+}
+
+.editorial-button-dark {
+  background: var(--ink);
+  color: var(--panel);
+}
+
+.editorial-button-dark:hover,
+.editorial-button-dark:focus-visible {
+  background: var(--panel);
+  box-shadow: 4px 4px 0 var(--ink);
+  color: var(--ink);
+}
+
+.editorial-button-light {
+  background: transparent;
+  color: var(--ink);
+}
+
+.editorial-button-light:hover,
+.editorial-button-light:focus-visible {
+  background: var(--panel-strong);
+  box-shadow: 4px 4px 0 rgba(17, 17, 17, 0.12);
+}
+
+.editorial-input,
+.editorial-textarea,
+.editorial-select {
+  background: var(--panel-strong);
+  border: 1px solid var(--line-strong);
+  color: var(--ink);
+  font-size: 0.94rem;
+  outline: none;
+  transition:
+    border-color 0.14s ease,
+    box-shadow 0.14s ease,
+    transform 0.14s ease;
+  width: 100%;
+}
+
+.editorial-input,
+.editorial-select {
+  min-height: 3rem;
+  padding: 0.8rem 0.95rem;
+}
+
+.editorial-textarea {
+  min-height: 7rem;
+  padding: 0.8rem 0.95rem;
+  resize: vertical;
+}
+
+.editorial-input:focus,
+.editorial-textarea:focus,
+.editorial-select:focus {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.08);
+}
+
+.editorial-card {
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow);
+}
+
+.editorial-grid {
+  background-image:
+    linear-gradient(to right, rgba(17, 17, 17, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(17, 17, 17, 0.08) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .editorial-button,
+  .editorial-button::after,
+  .editorial-input,
+  .editorial-textarea,
+  .editorial-select {
+    transition: none;
+  }
 }

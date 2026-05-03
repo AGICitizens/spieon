@@ -26,7 +26,7 @@ Prereqs: Docker, [uv](https://docs.astral.sh/uv/), [pnpm](https://pnpm.io/),
 Node 20+, Foundry (only if you plan to build / deploy contracts).
 
 ```bash
-cp .env.example .env                 # then fill in ANTHROPIC_API_KEY etc.
+cp .env.example .env                 # then fill in OPENROUTER_API_KEY etc.
 make up                              # postgres + langfuse
 cd backend && uv sync --group dev    # backend deps + dev tools
 make migrate                         # alembic upgrade head

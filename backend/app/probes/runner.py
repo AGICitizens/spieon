@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
+
+PROBE_HARD_TIMEOUT_SEC = 15.0
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -119,7 +122,9 @@ async def execute_probe(
 
     probe = spec.factory()
     try:
-        outcome = await probe.run(ctx, meter=meter)
+        outcome = await asyncio.wait_for(
+            probe.run(ctx, meter=meter), timeout=PROBE_HARD_TIMEOUT_SEC
+        )
         if outcome.error:
             probe_run.status = ProbeRunStatus.failed
             probe_run.error = outcome.error
@@ -128,6 +133,10 @@ async def execute_probe(
         probe_run.vulnerable = outcome.vulnerable
         probe_run.cost_usdc = outcome.cost_usdc or meter.cost.total
         probe_run.response_excerpt = outcome.response_excerpt
+    except asyncio.TimeoutError:
+        probe_run.status = ProbeRunStatus.failed
+        probe_run.error = f"probe exceeded {PROBE_HARD_TIMEOUT_SEC}s hard timeout"
+        outcome = ProbeOutcome(vulnerable=False, error=probe_run.error)
     except Exception as exc:
         probe_run.status = ProbeRunStatus.failed
         probe_run.error = f"{type(exc).__name__}: {exc}"

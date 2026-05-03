@@ -4,28 +4,31 @@ import json
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
-from anthropic import AsyncAnthropic
+from openai import AsyncOpenAI
 
-from app.agent.llm import get_anthropic, judge_model
+from app.agent.llm import chat_client, judge_model
 from app.probes.normalize import RawFinding
 
 JUDGE_TOOL = {
-    "name": "judge_finding",
-    "description": (
-        "Decide whether a probe finding looks like a real security issue or a false "
-        "positive. Always call this tool exactly once."
-    ),
-    "input_schema": {
-        "type": "object",
-        "additionalProperties": False,
-        "required": ["confirmed", "confidence", "rationale"],
-        "properties": {
-            "confirmed": {"type": "boolean"},
-            "confidence": {"type": "number", "minimum": 0, "maximum": 1},
-            "rationale": {"type": "string"},
-            "suggested_severity": {
-                "type": "string",
-                "enum": ["low", "medium", "high", "critical"],
+    "type": "function",
+    "function": {
+        "name": "judge_finding",
+        "description": (
+            "Decide whether a probe finding looks like a real security issue or a false "
+            "positive. Always call this tool exactly once."
+        ),
+        "parameters": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["confirmed", "confidence", "rationale"],
+            "properties": {
+                "confirmed": {"type": "boolean"},
+                "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+                "rationale": {"type": "string"},
+                "suggested_severity": {
+                    "type": "string",
+                    "enum": ["low", "medium", "high", "critical"],
+                },
             },
         },
     },
@@ -71,10 +74,10 @@ async def judge_finding(
     raw: RawFinding,
     evidence: str | None = None,
     *,
-    client: AsyncAnthropic | None = None,
+    client: AsyncOpenAI | None = None,
     model: str | None = None,
 ) -> Judgment:
-    llm = client or get_anthropic()
+    llm = client or chat_client()
     model_id = model or judge_model()
 
     user = (
@@ -84,24 +87,31 @@ async def judge_finding(
         f"{(evidence or '')[:4000]}"
     )
 
-    response = await llm.messages.create(
+    response = await llm.chat.completions.create(
         model=model_id,
         max_tokens=1024,
-        system=JUDGE_SYSTEM,
         tools=[JUDGE_TOOL],
-        tool_choice={"type": "tool", "name": "judge_finding"},
-        messages=[{"role": "user", "content": user}],
+        tool_choice={"type": "function", "function": {"name": "judge_finding"}},
+        messages=[
+            {"role": "system", "content": JUDGE_SYSTEM},
+            {"role": "user", "content": user},
+        ],
     )
 
-    for block in response.content:
-        if getattr(block, "type", None) == "tool_use" and block.name == "judge_finding":
-            payload = block.input
-            return Judgment(
-                confirmed=bool(payload.get("confirmed", False)),
-                confidence=float(payload.get("confidence", 0.0)),
-                rationale=str(payload.get("rationale", "")),
-                suggested_severity=payload.get("suggested_severity"),
-            )
+    tool_calls = (response.choices[0].message.tool_calls or []) if response.choices else []
+    for call in tool_calls:
+        if call.function.name != "judge_finding":
+            continue
+        try:
+            payload = json.loads(call.function.arguments or "{}")
+        except json.JSONDecodeError:
+            continue
+        return Judgment(
+            confirmed=bool(payload.get("confirmed", False)),
+            confidence=float(payload.get("confidence", 0.0)),
+            rationale=str(payload.get("rationale", "")),
+            suggested_severity=payload.get("suggested_severity"),
+        )
 
     return Judgment(
         confirmed=False,

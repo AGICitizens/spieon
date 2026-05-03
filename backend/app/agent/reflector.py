@@ -5,8 +5,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from app.agent.llm import default_model, get_anthropic
-from app.config import get_settings
+from app.agent.llm import chat_client, default_model, has_llm
 from app.probes.registry import iter_probes
 
 log = logging.getLogger(__name__)
@@ -14,34 +13,37 @@ log = logging.getLogger(__name__)
 Decision = Literal["continue_planned", "mutate", "pivot", "forward_to_verify"]
 
 REFLECT_TOOL = {
-    "name": "reflect_on_scan",
-    "description": (
-        "Decide what the agent should do after the latest probe pass. Always call "
-        "this tool exactly once."
-    ),
-    "input_schema": {
-        "type": "object",
-        "additionalProperties": False,
-        "required": ["decision", "rationale"],
-        "properties": {
-            "decision": {
-                "type": "string",
-                "enum": [
-                    "continue_planned",
-                    "mutate",
-                    "pivot",
-                    "forward_to_verify",
-                ],
+    "type": "function",
+    "function": {
+        "name": "reflect_on_scan",
+        "description": (
+            "Decide what the agent should do after the latest probe pass. Always call "
+            "this tool exactly once."
+        ),
+        "parameters": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["decision", "rationale"],
+            "properties": {
+                "decision": {
+                    "type": "string",
+                    "enum": [
+                        "continue_planned",
+                        "mutate",
+                        "pivot",
+                        "forward_to_verify",
+                    ],
+                },
+                "next_probes": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "When decision is mutate or pivot, the ordered probe ids to run "
+                        "next; ignored otherwise."
+                    ),
+                },
+                "rationale": {"type": "string"},
             },
-            "next_probes": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": (
-                    "When decision is mutate or pivot, the ordered probe ids to run "
-                    "next; ignored otherwise."
-                ),
-            },
-            "rationale": {"type": "string"},
         },
     },
 }
@@ -89,8 +91,7 @@ async def reflect_decision(
     adapt_iterations: int,
     max_iterations: int,
 ) -> ReflectResult:
-    settings = get_settings()
-    if not settings.anthropic_api_key:
+    if not has_llm():
         return _default_decision(findings_so_far, adapt_iterations, max_iterations)
 
     user = json.dumps(
@@ -106,40 +107,43 @@ async def reflect_decision(
         sort_keys=True,
     )
     try:
-        client = get_anthropic()
-        response = await client.messages.create(
+        client = chat_client()
+        response = await client.chat.completions.create(
             model=default_model(),
             max_tokens=1024,
-            system=REFLECTOR_SYSTEM,
             tools=[REFLECT_TOOL],
-            tool_choice={"type": "tool", "name": "reflect_on_scan"},
-            messages=[{"role": "user", "content": user}],
+            tool_choice={"type": "function", "function": {"name": "reflect_on_scan"}},
+            messages=[
+                {"role": "system", "content": REFLECTOR_SYSTEM},
+                {"role": "user", "content": user},
+            ],
         )
     except Exception as exc:
         log.warning("reflector LLM failed, defaulting to forward_to_verify: %s", exc)
         return _default_decision(findings_so_far, adapt_iterations, max_iterations)
 
     registered = set(_registered_ids())
-    for block in response.content:
-        if getattr(block, "type", None) == "tool_use" and block.name == "reflect_on_scan":
-            payload = block.input or {}
-            decision = str(payload.get("decision", "forward_to_verify"))
-            if decision not in {"continue_planned", "mutate", "pivot", "forward_to_verify"}:
-                decision = "forward_to_verify"
-            next_probes = [
-                p for p in (payload.get("next_probes") or []) if p in registered
-            ]
-            rationale = str(payload.get("rationale") or "")
-            if decision in {"mutate", "pivot"} and not next_probes:
-                decision = "forward_to_verify"
-                rationale = (
-                    rationale + " (downgraded: no valid next_probes)"
-                ).strip()
-            return ReflectResult(
-                decision=decision,  # type: ignore[arg-type]
-                next_probes=next_probes,
-                rationale=rationale,
-            )
+    tool_calls = (response.choices[0].message.tool_calls or []) if response.choices else []
+    for call in tool_calls:
+        if call.function.name != "reflect_on_scan":
+            continue
+        try:
+            payload = json.loads(call.function.arguments or "{}")
+        except json.JSONDecodeError:
+            continue
+        decision = str(payload.get("decision", "forward_to_verify"))
+        if decision not in {"continue_planned", "mutate", "pivot", "forward_to_verify"}:
+            decision = "forward_to_verify"
+        next_probes = [p for p in (payload.get("next_probes") or []) if p in registered]
+        rationale = str(payload.get("rationale") or "")
+        if decision in {"mutate", "pivot"} and not next_probes:
+            decision = "forward_to_verify"
+            rationale = (rationale + " (downgraded: no valid next_probes)").strip()
+        return ReflectResult(
+            decision=decision,  # type: ignore[arg-type]
+            next_probes=next_probes,
+            rationale=rationale,
+        )
 
     return _default_decision(findings_so_far, adapt_iterations, max_iterations)
 

@@ -4,33 +4,35 @@ import json
 import logging
 from dataclasses import dataclass, field
 
-from app.agent.llm import default_model, get_anthropic
-from app.config import get_settings
+from app.agent.llm import chat_client, default_model, has_llm
 from app.probes.registry import iter_probes
 
 log = logging.getLogger(__name__)
 
 
 SELECT_TOOL = {
-    "name": "select_probes",
-    "description": (
-        "Decide which registered probes to run, in priority order, against the target. "
-        "Always call this tool exactly once."
-    ),
-    "input_schema": {
-        "type": "object",
-        "additionalProperties": False,
-        "required": ["probe_ids", "rationale"],
-        "properties": {
-            "probe_ids": {
-                "type": "array",
-                "minItems": 1,
-                "items": {"type": "string"},
-                "description": "Registered probe ids in execution order.",
-            },
-            "rationale": {
-                "type": "string",
-                "description": "One-sentence justification of the chosen ordering.",
+    "type": "function",
+    "function": {
+        "name": "select_probes",
+        "description": (
+            "Decide which registered probes to run, in priority order, against the target. "
+            "Always call this tool exactly once."
+        ),
+        "parameters": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["probe_ids", "rationale"],
+            "properties": {
+                "probe_ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {"type": "string"},
+                    "description": "Registered probe ids in execution order.",
+                },
+                "rationale": {
+                    "type": "string",
+                    "description": "One-sentence justification of the chosen ordering.",
+                },
             },
         },
     },
@@ -85,9 +87,8 @@ async def plan_probes(
     *,
     model: str | None = None,
 ) -> tuple[list[str], str]:
-    settings = get_settings()
-    if not settings.anthropic_api_key:
-        return _deterministic_plan(), "deterministic plan: no ANTHROPIC_API_KEY"
+    if not has_llm():
+        return _deterministic_plan(), "deterministic plan: no LLM provider configured"
 
     available = _registered_probe_payload()
     user_message = json.dumps(
@@ -109,27 +110,34 @@ async def plan_probes(
     )
 
     try:
-        client = get_anthropic()
-        response = await client.messages.create(
+        client = chat_client()
+        response = await client.chat.completions.create(
             model=model or default_model(),
             max_tokens=2048,
-            system=PLANNER_SYSTEM,
             tools=[SELECT_TOOL],
-            tool_choice={"type": "tool", "name": "select_probes"},
-            messages=[{"role": "user", "content": user_message}],
+            tool_choice={"type": "function", "function": {"name": "select_probes"}},
+            messages=[
+                {"role": "system", "content": PLANNER_SYSTEM},
+                {"role": "user", "content": user_message},
+            ],
         )
     except Exception as exc:
         log.warning("planner LLM failed, falling back to deterministic plan: %s", exc)
         return _deterministic_plan(), f"deterministic plan: planner error ({exc})"
 
     registered_ids = {spec.id for spec in iter_probes()}
-    for block in response.content:
-        if getattr(block, "type", None) == "tool_use" and block.name == "select_probes":
-            input_data = block.input or {}
-            ids = input_data.get("probe_ids") or []
-            rationale = str(input_data.get("rationale") or "")
-            filtered = [p for p in ids if p in registered_ids]
-            if filtered:
-                return filtered, rationale or "planner-selected"
+    tool_calls = (response.choices[0].message.tool_calls or []) if response.choices else []
+    for call in tool_calls:
+        if call.function.name != "select_probes":
+            continue
+        try:
+            input_data = json.loads(call.function.arguments or "{}")
+        except json.JSONDecodeError:
+            continue
+        ids = input_data.get("probe_ids") or []
+        rationale = str(input_data.get("rationale") or "")
+        filtered = [p for p in ids if p in registered_ids]
+        if filtered:
+            return filtered, rationale or "planner-selected"
 
     return _deterministic_plan(), "deterministic plan: planner returned no usable selection"

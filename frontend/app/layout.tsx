@@ -1,46 +1,48 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import Link from "next/link";
+import {
+  Instrument_Serif,
+  JetBrains_Mono,
+  Space_Grotesk,
+} from "next/font/google";
+import SiteNav from "@/components/SiteNav";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Spieon",
-  description: "Autonomous security agent for the agent economy.",
+  description:
+    "Autonomous security agent that scans MCP servers and x402 endpoints, attests findings, and rewards probe authors.",
 };
 
-const NAV = [
-  { href: "/", label: "Home" },
-  { href: "/scan", label: "Scan" },
-  { href: "/agent", label: "Agent" },
-  { href: "/findings", label: "Findings" },
-  { href: "/memory", label: "Memory" },
-  { href: "/modules", label: "Modules" },
-  { href: "/leaderboard", label: "Leaderboard" },
-  { href: "/benchmarks", label: "Benchmarks" },
-  { href: "/about", label: "About" },
-];
+const editorialSans = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-space-grotesk",
+});
+
+const editorialMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-jetbrains-mono",
+});
+
+const editorialSerif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
+  variable: "--font-instrument-serif",
+});
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-screen antialiased">
-        <header className="border-b border-zinc-800/80">
-          <nav className="mx-auto flex max-w-6xl items-center gap-6 px-6 py-4 text-sm">
-            <Link href="/" className="font-semibold tracking-tight text-zinc-100">
-              spieon
-            </Link>
-            <ul className="flex flex-wrap gap-4 text-zinc-400">
-              {NAV.slice(1).map((item) => (
-                <li key={item.href}>
-                  <Link href={item.href} className="hover:text-zinc-100">
-                    {item.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </nav>
-        </header>
-        <main className="mx-auto max-w-6xl px-6 py-10">{children}</main>
+      <body
+        className={`${editorialSans.variable} ${editorialMono.variable} ${editorialSerif.variable} min-h-screen antialiased`}
+      >
+        <div className="relative z-10 mx-auto min-h-screen max-w-[1440px] border-x border-[var(--line-strong)] bg-[var(--paper)]">
+          <SiteNav />
+          <main className="px-5 py-8 sm:px-8 sm:py-10 lg:px-10 lg:py-12">
+            {children}
+          </main>
+        </div>
       </body>
     </html>
   );

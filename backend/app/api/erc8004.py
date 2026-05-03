@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
+from app.chain import ens as ens_lookup
 from app.chain.client import agent_address as resolve_agent_address
 from app.config import get_settings
 from app.db import get_session
@@ -32,16 +33,32 @@ def _agent_address_safe() -> str | None:
 async def agent_descriptor() -> dict[str, Any]:
     settings = get_settings()
     address = _agent_address_safe()
+
+    ens_name = ens_lookup.configured_name()
+    text_records: dict[str, str] = {}
+    reverse_name: str | None = None
+    if ens_name:
+        text_records = await ens_lookup.fetch_text_records(ens_name)
+    if address:
+        reverse_name = await ens_lookup.lookup_name(address)
+
+    description_default = (
+        "Autonomous security agent for the agent economy. Pen-tests x402 endpoints "
+        "and MCP servers, attests findings on Base Sepolia, and pays bounties to "
+        "module authors."
+    )
+
     return {
         "schemaVersion": "erc8004.identity.v0",
         "name": "Spieon",
-        "description": (
-            "Autonomous security agent for the agent economy. Pen-tests x402 endpoints "
-            "and MCP servers, attests findings on Base Sepolia, and pays bounties to "
-            "module authors."
-        ),
-        "website": "https://spieon.eth",
-        "basename": "spieon.base.eth",
+        "description": text_records.get("description") or description_default,
+        "website": text_records.get("url"),
+        "ens": {
+            "name": ens_name,
+            "primaryName": reverse_name,
+            "chainId": settings.ens_chain_id,
+            "textRecords": text_records,
+        } if ens_name else None,
         "agentAddress": address,
         "chain": {
             "id": settings.base_sepolia_chain_id,

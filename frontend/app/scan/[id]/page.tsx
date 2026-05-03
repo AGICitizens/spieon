@@ -69,7 +69,7 @@ export default async function ScanDetailPage({
         <LiveRefresh intervalMs={3000} />
       ) : null}
 
-      <NarrationStream scanId={id} />
+      <NarrationStream scanId={id} scanStatus={scan?.status ?? null} />
 
       <section className="space-y-3">
         <h2 className="text-sm uppercase tracking-wide text-zinc-500">
