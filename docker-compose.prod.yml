@@ -1,0 +1,61 @@
+# Spieon — production stack for the VPS.
+#
+# Differences from docker-compose.yml (dev):
+#   - No Langfuse (six containers we don't need behind nginx).
+#   - Backend binds to 127.0.0.1:8000 — only nginx on the host can reach it.
+#   - No source bind mount and no --reload — runs the baked image.
+#   - Postgres is NOT exposed on a host port (loopback-only via the docker network).
+#   - Persistent named volume for finding bundles (otherwise lost on container rebuild).
+#
+# Bring up:
+#     docker compose -f docker-compose.prod.yml up -d --build
+#
+# First-time migrations + seed (see docs/DEPLOY.md):
+#     docker compose -f docker-compose.prod.yml exec backend uv run alembic upgrade head
+
+name: spieon
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?set in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      # Compose-internal overrides
+      APP_ENV: production
+      POSTGRES_HOST: postgres
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DATABASE_URL_SYNC: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      BUNDLE_LOCAL_DIR: /var/spieon/bundles
+      # CORS_ORIGINS comes from .env — must include https://spieon.agicitizens.com
+    ports:
+      # Loopback-only: nginx on the host proxies into this.
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - bundles:/var/spieon/bundles
+    # Production CMD lives in the Dockerfile (no --reload, no source mount).
+
+volumes:
+  pgdata:
+  bundles:
