@@ -75,6 +75,14 @@ export default async function HomePage() {
             <Link href="/findings" className="editorial-button editorial-button-light">
               Review findings
             </Link>
+            <a
+              href="https://github.com/AGICitizens/spieon"
+              target="_blank"
+              rel="noreferrer"
+              className="editorial-button editorial-button-light"
+            >
+              OSS GitHub
+            </a>
           </>
         }
         aside={
@@ -179,20 +187,46 @@ export default async function HomePage() {
           </div>
         </Panel>
 
-        <Panel>
-          <p className="font-editorial-serif text-4xl italic leading-none">
-            Enterprise-grade means less dashboard noise and more immediate
-            operator confidence.
-          </p>
-          <div className="mt-6 space-y-4 text-sm leading-6 text-[var(--muted)]">
-            <p>
-              The UX now prioritizes state clarity, obvious primary actions, and
-              mono-typed telemetry instead of generic dark cards.
+        <Panel className="space-y-6">
+          <div className="space-y-3">
+            <p className="font-editorial-mono text-[0.68rem] font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
+              Open source
             </p>
+            <h2 className="max-w-[12ch] font-editorial-sans text-2xl font-semibold uppercase leading-tight">
+              Inspect the code, docs, and proof trail.
+            </h2>
+            <p className="text-sm leading-6 text-[var(--muted)]">
+              Spieon is fully open source. Judges, hosts, and operators can
+              review the implementation, threat model, AI disclosure, and demo
+              artifacts directly in the repo.
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <a
+              href="https://github.com/AGICitizens/spieon"
+              target="_blank"
+              rel="noreferrer"
+              className="editorial-button editorial-button-dark justify-center text-center"
+            >
+              Open GitHub
+            </a>
+            <Link
+              href="/hackathon"
+              className="editorial-button editorial-button-light justify-center text-center"
+            >
+              Hackathon brief
+            </Link>
+          </div>
+
+          <div className="space-y-3 border-t border-[var(--line)] pt-4 text-sm leading-6 text-[var(--muted)]">
             <p>
-              The visual language intentionally mirrors a security control plane:
-              paper, ink, evidence, and crisp borders rather than soft consumer
-              gradients.
+              The hackathon brief consolidates AI usage disclosure, sponsor
+              integrations, bounty flow, and the exact links judges can use to
+              verify what is live.
+            </p>
+            <p className="font-editorial-mono text-[0.68rem] uppercase tracking-[0.18em] text-[var(--ink)]">
+              ETHGlobal-ready documentation
             </p>
           </div>
         </Panel>

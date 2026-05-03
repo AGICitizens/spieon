@@ -6,10 +6,10 @@ Update this file as you go. At submission time it should give a judge a complete
 
 ## Tools used
 
-| Tool        | Purpose                                            |
-| ----------- | -------------------------------------------------- |
-| Claude Code | (e.g., drafting, refactoring, debugging — fill in) |
-|             |                                                    |
+| Tool        | Purpose                                                                 |
+| ----------- | ----------------------------------------------------------------------- |
+| Claude Code | PRD drafting, backend/frontend scaffolding, refactors, debugging, docs |
+| ChatGPT     | Writing support for product phrasing, review copy, and documentation    |
 
 ## Where AI assisted
 
@@ -21,7 +21,7 @@ Note the file or component, what the AI did, and what was hand-authored on top o
 
 ### Backend (FastAPI, scan workflow, agent runtime)
 
-- _(fill in per file as built)_
+- `backend/app/api/agent.py` — assisted with diagnosing and fixing the slow `/agent/stats` path by restructuring independent RPC / ENS lookups to run concurrently.
 
 ### Smart contracts
 
@@ -33,15 +33,18 @@ Note the file or component, what the AI did, and what was hand-authored on top o
 
 ### Frontend
 
-- _(fill in per page/component as built)_
+- `frontend/app/page.tsx` — assisted with homepage iteration, including replacing the old explainer panel with OSS + hackathon review links.
+- `frontend/app/hackathon/page.tsx` — assisted with structuring the judge-facing brief that summarizes AI disclosure, sponsor integrations, bounty flow, and verification links.
+- `frontend/components/SiteNav.tsx` — assisted with navigation updates so the hackathon brief is directly reachable from the primary UI.
+- `frontend/app/layout.tsx` — assisted with suppressing an extension-triggered hydration warning on the root `<body>` node.
 
 ### Tests
 
-- _(fill in)_
+- TypeScript validation and endpoint checks were run after UI and backend changes; AI assisted with the verification loop and issue isolation.
 
 ### Infrastructure (Docker, deploy scripts, CI)
 
-- _(fill in)_
+- `docs/DEMO.md`, `README.md`, and deployment-adjacent repo docs were revised with AI assistance to keep sponsor, OSS, and review guidance aligned with the live product surface.
 
 ## Where AI was NOT used
 
@@ -52,15 +55,17 @@ State the parts of the project that are entirely human work. Examples to fill in
 - Memory consolidation policy (thresholds, promotion rules)
 - Onchain schema design (EAS schema, contract interfaces)
 - Demo narrative and timing
+- Sponsor selection and scoping decisions
 
 ## Prompts and spec files
 
 Per the spec-driven workflow guidance, list any prompt or spec artifacts included in this repo:
 
 - `docs/PRD.md` — master product specification
+- `docs/DEMO.md` — demo runbook and judge verification flow
 
 ## Disclosure summary
 
 A short paragraph for the submission write-up. Update at the end.
 
-> Spieon was built solo over the ETHGlobal Open Agents hackathon window (April 26 – May 3, 2026). AI tools (primarily Claude Code) were used as a development assistant for drafting the PRD, scaffolding boilerplate, and debugging. All architectural decisions, probe designs, and the demo narrative are human-authored. Every commit was reviewed and edited by hand before landing.
+> Spieon was built solo over the ETHGlobal Open Agents hackathon window (April 26 – May 3, 2026). AI tools (primarily Claude Code, with limited ChatGPT writing support) were used as development assistants for drafting the PRD, shaping UI copy, scaffolding boilerplate, fixing bugs, and keeping docs in sync. All architectural decisions, probe designs, sponsor-scoping choices, and the demo narrative are human-authored. Every commit was reviewed and edited by hand before landing.

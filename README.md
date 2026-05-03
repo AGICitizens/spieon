@@ -5,8 +5,8 @@ x402-protected endpoints, attests findings on Base Sepolia, encrypts the bundle
 to the operator, and pays bounties to the module authors whose probes landed.
 
 See [docs/PRD.md](docs/PRD.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
-[docs/THREAT_MODEL.md](docs/THREAT_MODEL.md), and
-[docs/RECOVERY.md](docs/RECOVERY.md).
+[docs/THREAT_MODEL.md](docs/THREAT_MODEL.md), [docs/RECOVERY.md](docs/RECOVERY.md),
+[docs/AI_USAGE.md](docs/AI_USAGE.md), and [docs/DEMO.md](docs/DEMO.md).
 
 ## Layout
 
@@ -43,7 +43,9 @@ NEXT_PUBLIC_API_URL=http://localhost:8000 pnpm dev   # next dev on :3000
 Open `http://localhost:3000`. Submit a scan from `/scan` and watch the
 narration stream live on `/scan/<id>`. The recipient key is generated in your
 browser at submission and only its public form (`age1…`) is sent to the
-backend; the secret stays on your machine.
+backend; the secret stays on your machine. The homepage also links to the open
+source GitHub repo and a dedicated `/hackathon` brief for judges, hosts, and
+sponsor reviewers.
 
 ## What you get end-to-end
 
